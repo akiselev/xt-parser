@@ -5,8 +5,8 @@
 
 use std::collections::HashMap;
 
-use crate::entity::{FieldVal, RawEntity};
-use crate::error::{Result, XtError};
+use crate::entity::RawEntity;
+use crate::error::Result;
 use crate::schema;
 use crate::types::*;
 
@@ -49,21 +49,20 @@ fn build_one_body(
 
     // Field layout depends on the PS version and annotation diffs applied.
     //
-    // PS13 base schema (23 fields, 0-indexed):
-    //   3=surf_chain, 4=curve_chain, 5=point_chain, 15=body_type, 16=shell,
+    // PS13 base schema (23 transmitted fields, 0-indexed):
+    //   0=node_id, 1=attr, 2=owner, 3=surf_chain, 4=curve_chain, 5=point_chain,
+    //   6=precision, 7=res_size, 8=res_linear, ..., 15=body_type, 16=shell,
     //   17=bsurf, 18=bcurve, 19=bpoint, 20=region
     //
-    // PS30+ annotated (34 fields as observed in Onshape/SolidWorks output):
-    //   Two mesh/polyline fields inserted at 6,7 and an owner field at 15.
-    //   This shifts the geometry fields:
-    //   9=res_size, 10=res_linear, 17=body_type, 18=shell,
-    //   19=surf_chain, 20=curve_chain, 21=point_chain, 24=region
+    // PS30+ annotated (34 fields from Onshape/SolidWorks):
+    //   Annotation diffs insert extra fields, shifting positions.
+    //   Verified from entity dumps: field[14]=body_type, field[18]=shell,
+    //   field[19]=bsurf, field[20]=bcurve, field[21]=bpoint, field[24]=region.
     let (res_size_fi, res_linear_fi, body_type_fi,
          shell_fi, surf_fi, curve_fi, point_fi, region_fi) =
         if f.len() >= 30 {
-            // PS30+ annotated layout (34 fields from sch_13006 + annotation diffs)
-            // Surface/curve/point chains stay at [3,4,5] (before insertion point)
-            (9, 10, 17, 18, 3, 4, 5, 24)
+            // PS30+ annotated layout (34 fields)
+            (9, 10, 14, 18, 19, 20, 21, 24)
         } else {
             // PS13 base layout (23 fields)
             (7, 8, 15, 16, 3, 4, 5, 20)
@@ -300,29 +299,30 @@ fn build_bspline_surface(
     }
     let f = &nurbs.fields;
 
-    let u_degree = f.get(0)?.as_i64() as u32;
-    let n_u_verts = f.get(1)?.as_i64() as usize;
-    let u_vert_dim = f.get(2)?.as_i64() as usize;
-    let n_u_knots = f.get(3)?.as_i64() as usize;
-    let u_periodic = f.get(5)?.as_bool();
-    let u_closed = f.get(6)?.as_bool();
-    let u_rational = f.get(7)?.as_bool();
+    // NURBS_SURF layout from sch_13006 (20 transmitted fields):
+    //   [0]=u_periodic(l), [1]=v_periodic(l), [2]=u_degree(n), [3]=v_degree(n),
+    //   [4]=n_u_vertices(d), [5]=n_v_vertices(d), [6]=u_knot_type(u), [7]=v_knot_type(u),
+    //   [8]=n_u_knots(d), [9]=n_v_knots(d), [10]=rational(l),
+    //   [11]=u_closed(l), [12]=v_closed(l), [13]=surface_form(u), [14]=vertex_dim(n),
+    //   [15]=bspline_vertices(p), [16]=u_knot_mult(p), [17]=v_knot_mult(p),
+    //   [18]=u_knots(p), [19]=v_knots(p)
+    let u_periodic = f.get(0)?.as_bool();
+    let v_periodic = f.get(1)?.as_bool();
+    let u_degree = f.get(2)?.as_i64() as u32;
+    let v_degree = f.get(3)?.as_i64() as u32;
+    let n_u_verts = f.get(4)?.as_i64() as usize;
+    let n_v_verts = f.get(5)?.as_i64() as usize;
+    let vertex_dim = f.get(14)?.as_i64() as usize;
+    let rational = f.get(10)?.as_bool();
+    let u_closed = f.get(11)?.as_bool();
+    let v_closed = f.get(12)?.as_bool();
 
-    let v_degree = f.get(9)?.as_i64() as u32;
-    let n_v_verts = f.get(10)?.as_i64() as usize;
-    let v_vert_dim = f.get(11)?.as_i64() as usize;
-    let n_v_knots = f.get(12)?.as_i64() as usize;
-    let v_periodic = f.get(14)?.as_bool();
-    let v_closed = f.get(15)?.as_bool();
-    let v_rational = f.get(16)?.as_bool();
+    let verts_ptr = f.get(15)?.as_ptr();
+    let u_kmult_ptr = f.get(16)?.as_ptr();
+    let v_kmult_ptr = f.get(17)?.as_ptr();
+    let u_kset_ptr = f.get(18)?.as_ptr();
+    let v_kset_ptr = f.get(19)?.as_ptr();
 
-    let verts_ptr = f.get(18)?.as_ptr();
-    let u_kmult_ptr = f.get(19)?.as_ptr();
-    let u_kset_ptr = f.get(20)?.as_ptr();
-    let v_kmult_ptr = f.get(22)?.as_ptr();
-    let v_kset_ptr = f.get(23)?.as_ptr();
-
-    // Resolve sub-entities
     let raw_verts = idx.get(&verts_ptr).map(|e| &e.var_f64).cloned().unwrap_or_default();
     let u_mults: Vec<i16> = idx.get(&u_kmult_ptr).map(|e| e.var_i16.clone()).unwrap_or_default();
     let u_knot_vals: Vec<f64> = idx.get(&u_kset_ptr).map(|e| e.var_f64.clone()).unwrap_or_default();
@@ -332,8 +332,7 @@ fn build_bspline_surface(
     let u_knots = expand_knots(&u_knot_vals, &u_mults);
     let v_knots = expand_knots(&v_knot_vals, &v_mults);
 
-    let rational = u_rational || v_rational;
-    let dim = u_vert_dim.max(v_vert_dim);
+    let dim = vertex_dim;
     let (poles, weights) = reshape_poles(&raw_verts, n_u_verts * n_v_verts, dim, rational);
 
     Some(XtSurface::BSpline(XtBSplineSurface {
@@ -488,7 +487,7 @@ fn build_bspline_curve(
 // ── Topology builders ────────────────────────────────────────────────────────
 
 fn build_regions(
-    mut ptr: usize,
+    ptr: usize,
     by_ti: &HashMap<(u16, usize), &RawEntity>,
     body: &mut XtBody,
 ) -> Result<()> {
@@ -577,7 +576,7 @@ fn build_faces(
     mut ptr: usize,
     idx: &HashMap<usize, &RawEntity>,
     by_ti: &HashMap<(u16, usize), &RawEntity>,
-    all_entities: &[RawEntity],
+    _all_entities: &[RawEntity],
     body: &mut XtBody,
 ) -> Result<Vec<XtFace>> {
     let mut faces = Vec::new();

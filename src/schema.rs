@@ -5,8 +5,7 @@
 //! characters: C (copy), I (insert), D (delete), A (append).
 
 use winnow::prelude::*;
-use winnow::token::{take_while, one_of, take};
-use winnow::combinator::opt;
+use winnow::token::take_while;
 
 use crate::token;
 
@@ -212,12 +211,19 @@ pub enum FieldType {
     I,
     /// 3×3 matrix (9 × f64)
     F64x9,
+    /// 2-element pointer field (e.g. INTERSECTION.surface, BLENDED_EDGE.surface)
+    P2,
+    /// 3-element pointer field (e.g. BLENDED_VERTEX.surface)
+    P3,
+    /// 2-element float field (e.g. BLENDED_EDGE.range, CHART.parameter_error)
+    F2,
+    /// 3-element float field (e.g. BLENDED_VERTEX.range)
+    F3,
+    /// 2-element char field (e.g. BLEND_OVERLAP.blend_type)
+    C2,
     /// Variable-length float array whose element count equals the entity index.
-    /// Used by INTERSECTION_DATA (204) field[1] where the stored count token is
-    /// the surface count and the float count is the sample count = entity_index.
     FVlaIdx,
-    /// Whitespace-delimited opaque token (e.g. PS30 attribute flag string).
-    /// Reads one complete non-whitespace token from the stream and discards it.
+    /// Whitespace-delimited opaque token.
     S,
 }
 
@@ -429,8 +435,10 @@ pub fn ps13_schema(type_id: u16) -> Option<EntitySchema> {
         // Transmitted: node_id(d), attributes_features(p), owner(p), next(p),
         //   previous(p), geometric_owner(p), sense(c), surface(p, extra2=2→2P),
         //   chart(p), start(p), end(p)
+        // surface; p; 1 1006 2 → P2 (reads 2 pointers from stream)
+        // scale; f; transmit=0 → omitted
         INTERSECTION => (
-            vec![D, P, P, P, P, P, C, P, P, P, P, P],
+            vec![D, P, P, P, P, P, C, P2, P, P, P],
             false,
             None,
         ),
@@ -449,9 +457,9 @@ pub fn ps13_schema(type_id: u16) -> Option<EntitySchema> {
         // Transmitted fixed: base_parameter(f), base_scale(f), chart_count(d),
         //   chordal_error(f), angular_error(f), parameter_error(f, extra2=2→2f)
         // Variable: hvec(h, extra2=1) — hvec treated as V3 (see entity.rs 'h' reader)
-        // chart_count is at field index 2; used as var_count_field_idx.
+        // parameter_error has count=2 → F2 (2 floats). hvec(h) is the variable tail.
         CHART => (
-            vec![F64, F64, D, F64, F64, F64, F64],
+            vec![F64, F64, D, F64, F64, F2, V],
             true,
             Some(VarType::V3),
         ),
@@ -460,7 +468,10 @@ pub fn ps13_schema(type_id: u16) -> Option<EntitySchema> {
         // Transmitted: type(c), hvec(h, extra2=1 variable)
         // hvec treated as V3 (see entity.rs 'h' reader).
         // entity_index_is_var_count=true: count comes from entity index.
-        LIMIT => (vec![C], true, Some(VarType::V3)),
+        // LIMIT: type(c) + hvec(h, variable). has_version=true reads version
+        // (always 1) before entity_idx. var_count = version-1 = 0 extra elements
+        // (the single h-type is in fixed V).
+        LIMIT => (vec![C, V], true, Some(VarType::V3)),
 
         // ── Type 43: BSPLINE_CURVE ────────────────────────────────
         // Transmitted: knot_vector(p), vertex_dimension(n), vertex_count(d),
@@ -1001,14 +1012,8 @@ pub fn ps13_schema(type_id: u16) -> Option<EntitySchema> {
         //   turns(i), pitch(f), tol(f)
         184 => (vec![V, V, V, C, I, F64, F64], false, None),
 
-        // ── PS30+ INTERSECTION_DATA (type 204) ───────────────────
-        // Not in PS13 schema file; kept here for continuity.
-        // field[0]: u (uv_type scalar), variable body: entity_index floats.
-        INTERSECTION_DATA => (
-            vec![U, FVlaIdx],
-            false,
-            None,
-        ),
+        // Type 204 (INTERSECTION_DATA) is PS30-specific — NOT in sch_13006.
+        // It uses Path B (full inline schema) when encountered.
 
         _ => return None,
     };

@@ -278,10 +278,34 @@ fn read_inline_schema_path_b(input: &mut &str, type_id: u16) -> Result<InlineSch
         fields.push(read_field_descriptor(input)?);
     }
 
+    // If the last field has array_count == 1, the entity is variable-length.
+    // The VERSION int (read before entity_index) is the array element count,
+    // and the variable array is read as a trailing block after all fixed fields.
+    // Remove the variable field from the fixed field list.
+    let (is_variable, var_type) = match fields.last() {
+        Some(fd) if fd.array_count == 1 => {
+            let vt = match fd.type_char {
+                'f' => Some(VarType::F64),
+                'p' | 't' => Some(VarType::Ptr),
+                'd' => Some(VarType::I16),
+                'n' | 'w' => Some(VarType::I16),
+                'c' => Some(VarType::Char),
+                'v' => Some(VarType::V3),
+                'u' => Some(VarType::I16),
+                _ => None,
+            };
+            (true, vt)
+        }
+        _ => (false, None),
+    };
+    if is_variable {
+        fields.pop();
+    }
+
     Ok(InlineSchema {
         fields,
-        is_variable: false,
-        var_type: None,
+        is_variable,
+        var_type,
     })
 }
 
@@ -341,8 +365,15 @@ fn read_entity_fields(
     // If the entity has a trailing variable-length array, read it.
     // Variable-length entities: the var_count (from the VERSION field read
     // before entity_index) determines the array element count.
+    // For entities with fixed V/h-type fields (like CHART, LIMIT), the first
+    // h-type element is in the fixed section, so variable count = version - 1.
     if schema.is_variable {
-        let count = var_count;
+        let has_fixed_hvec = schema.fields.iter().any(|f| f.type_char == 'v');
+        let count = if has_fixed_hvec && var_count > 0 {
+            var_count - 1
+        } else {
+            var_count
+        };
         match schema.var_type {
             Some(VarType::F64) => {
                 for _ in 0..count {
@@ -410,27 +441,53 @@ fn read_single_field(input: &mut &str, type_char: char) -> Result<FieldVal> {
             Ok(FieldVal::Byte(v))
         }
         'v' => {
-            let x = read_f64(input)?;
-            let y = read_f64(input)?;
-            let z = read_f64(input)?;
-            Ok(FieldVal::Vec3([x, y, z]))
+            // Vector: 3 doubles, OR a single `?` fills all 3 with NaN.
+            // The Parasolid text_read_vector (0x182055440) checks for `?` once
+            // at the start; if found, all 3 components are NaN and only the `?`
+            // byte is consumed from the stream.
+            token::ws(input).map_err(|_| XtError::UnexpectedEof)?;
+            if input.starts_with('?') {
+                *input = &input[1..];
+                consume_space(input);
+                Ok(FieldVal::Vec3([f64::NAN; 3]))
+            } else {
+                let x = read_f64(input)?;
+                let y = read_f64(input)?;
+                let z = read_f64(input)?;
+                Ok(FieldVal::Vec3([x, y, z]))
+            }
         }
         'b' => {
-            // Box: 6 doubles (we store as 2 Vec3s, only keep first as Vec3)
-            let x1 = read_f64(input)?;
-            let y1 = read_f64(input)?;
-            let z1 = read_f64(input)?;
-            let _x2 = read_f64(input)?;
-            let _y2 = read_f64(input)?;
-            let _z2 = read_f64(input)?;
-            Ok(FieldVal::Vec3([x1, y1, z1]))
+            // Box: 6 doubles, OR a single `?` fills all 6 with NaN.
+            token::ws(input).map_err(|_| XtError::UnexpectedEof)?;
+            if input.starts_with('?') {
+                *input = &input[1..];
+                consume_space(input);
+                Ok(FieldVal::Vec3([f64::NAN; 3]))
+            } else {
+                let x1 = read_f64(input)?;
+                let y1 = read_f64(input)?;
+                let z1 = read_f64(input)?;
+                let _x2 = read_f64(input)?;
+                let _y2 = read_f64(input)?;
+                let _z2 = read_f64(input)?;
+                Ok(FieldVal::Vec3([x1, y1, z1]))
+            }
         }
         'n' | 'w' => Ok(FieldVal::Short(read_int16(input)?)),
         'l' => Ok(FieldVal::Bool(read_bool_tf(input)?)),
         'i' => {
-            let lo = read_f64(input)?;
-            let hi = read_f64(input)?;
-            Ok(FieldVal::Interval([lo, hi]))
+            // Interval: 2 doubles, OR a single `?` fills both with NaN.
+            token::ws(input).map_err(|_| XtError::UnexpectedEof)?;
+            if input.starts_with('?') {
+                *input = &input[1..];
+                consume_space(input);
+                Ok(FieldVal::Interval([f64::NAN; 2]))
+            } else {
+                let lo = read_f64(input)?;
+                let hi = read_f64(input)?;
+                Ok(FieldVal::Interval([lo, hi]))
+            }
         }
         'q' => {
             // Quaternion: NOT read from stream, zeroed.
@@ -487,11 +544,18 @@ fn field_desc_from_base(ft: FieldType) -> FieldDesc {
         FieldType::V => 'v',
         FieldType::I => 'i',
         FieldType::F64x9 => 'f',
-        FieldType::FVlaIdx => 'f', // variable-length float array indexed by entity_index
-        FieldType::S => 's',       // opaque skip token
+        FieldType::P2 => 'p',
+        FieldType::P3 => 'p',
+        FieldType::F2 => 'f',
+        FieldType::F3 => 'f',
+        FieldType::C2 => 'c',
+        FieldType::FVlaIdx => 'f',
+        FieldType::S => 's',
     };
     let array_count = match ft {
         FieldType::F64x9 => 9,
+        FieldType::P2 | FieldType::F2 | FieldType::C2 => 2,
+        FieldType::P3 | FieldType::F3 => 3,
         _ => 0,
     };
     FieldDesc {
@@ -564,6 +628,10 @@ fn read_int16(input: &mut &str) -> Result<i16> {
 fn read_f64(input: &mut &str) -> Result<f64> {
     token::ws(input).map_err(|_| XtError::UnexpectedEof)?;
     if input.starts_with('?') {
+        // `?` alone = NaN sentinel for optional/absent float.
+        // The `?` consumes only itself; any following digits belong to the
+        // NEXT field value (e.g. `?20` = NaN for this field, then `20` is
+        // the next pointer/int field).
         *input = &input[1..];
         consume_space(input);
         return Ok(f64::NAN);
