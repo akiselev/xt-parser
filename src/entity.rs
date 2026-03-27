@@ -1,0 +1,602 @@
+//! Raw entity representation and compact transmit format entity parser.
+//!
+//! Entity stream format (from reverse engineering of pskernel.dll):
+//!   - After the 2-field preamble (N_types, entity_count), entities follow
+//!   - Each entity: <type_id> <lazy_inline_schema> <entity_index> <fields...>
+//!   - Schema is read lazily on first encounter of each type_id
+//!   - type_id == 1 is the stream terminator
+//!   - Newlines must be stripped from input before calling
+
+#![allow(unused)]
+
+use std::collections::HashMap;
+use winnow::prelude::*;
+use winnow::ascii;
+use winnow::token::any;
+
+use crate::error::{Result, XtError};
+use crate::schema::{self, EntitySchema, FieldType, VarType};
+use crate::token;
+
+// ── Raw entity types ─────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone)]
+pub enum FieldVal {
+    Int(i64),
+    Float(f64),
+    Short(i16),
+    Char(char),
+    Bool(bool),
+    Byte(u8),
+    Ptr(usize),
+    Vec3([f64; 3]),
+    Interval([f64; 2]),
+    Mat3([f64; 9]),
+}
+
+impl FieldVal {
+    pub fn as_ptr(&self) -> usize {
+        match self {
+            FieldVal::Ptr(p) => *p,
+            FieldVal::Int(i) => *i as usize,
+            _ => 0,
+        }
+    }
+    pub fn as_i64(&self) -> i64 {
+        match self {
+            FieldVal::Int(i) => *i,
+            FieldVal::Short(s) => *s as i64,
+            FieldVal::Byte(b) => *b as i64,
+            FieldVal::Ptr(p) => *p as i64,
+            FieldVal::Float(f) => *f as i64,
+            _ => 0,
+        }
+    }
+    pub fn as_f64(&self) -> f64 {
+        match self {
+            FieldVal::Float(f) => *f,
+            FieldVal::Int(i) => *i as f64,
+            _ => 0.0,
+        }
+    }
+    pub fn as_char(&self) -> char {
+        match self {
+            FieldVal::Char(c) => *c,
+            _ => '?',
+        }
+    }
+    pub fn as_bool(&self) -> bool {
+        match self {
+            FieldVal::Bool(b) => *b,
+            FieldVal::Int(i) => *i != 0,
+            _ => false,
+        }
+    }
+    pub fn as_vec3(&self) -> [f64; 3] {
+        match self {
+            FieldVal::Vec3(v) => *v,
+            _ => [0.0; 3],
+        }
+    }
+    pub fn as_byte(&self) -> u8 {
+        match self {
+            FieldVal::Byte(b) => *b,
+            FieldVal::Int(i) => *i as u8,
+            _ => 0,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct RawEntity {
+    pub type_id: u16,
+    pub index: usize,
+    pub fields: Vec<FieldVal>,
+    pub var_f64: Vec<f64>,
+    pub var_i16: Vec<i16>,
+    pub var_ptr: Vec<usize>,
+    pub var_char: Vec<char>,
+}
+
+// ── Inline schema descriptor ────────────────────────────────────────────────
+
+#[derive(Debug, Clone)]
+struct FieldDesc {
+    type_char: char,
+    entity_type_id: u16,
+    array_count: i32,
+    element_type: bool,
+}
+
+#[derive(Debug, Clone)]
+struct InlineSchema {
+    fields: Vec<FieldDesc>,
+    is_variable: bool,
+    var_type: Option<VarType>,
+}
+
+// ── Entity stream parser ────────────────────────────────────────────────────
+
+/// Parse all entities from the compact transmit format.
+/// `input` must have newlines already stripped.
+/// `partition_count` is from the preamble (usually 0).
+pub fn parse_entities(input: &mut &str, partition_count: usize) -> Result<Vec<RawEntity>> {
+    let mut schema_cache: HashMap<u16, InlineSchema> = HashMap::new();
+    let mut entities: Vec<RawEntity> = Vec::new();
+
+    loop {
+        token::ws(input).map_err(|_| XtError::UnexpectedEof)?;
+        if input.is_empty() {
+            break;
+        }
+
+        // Read type_id (space-delimited decimal uint16).
+        let type_id = match read_uint16(input) {
+            Ok(t) => t,
+            Err(e) => {
+                eprintln!(
+                    "[xt-winnow] type_id read failed after {} entities: {} (next: {:?})",
+                    entities.len(), e, &input[..30.min(input.len())]
+                );
+                break;
+            }
+        };
+
+        // type_id == 1 is the stream terminator.
+        if type_id == 1 {
+            let _partition_idx = read_int32(input)?;
+            break;
+        }
+
+        // Lazily read and cache inline schema. On error, stop gracefully
+        // and return what we have — incomplete base schemas will cause errors
+        // for some entity types.
+        let checkpoint = *input;
+        let result: Result<RawEntity> = (|| {
+            if !schema_cache.contains_key(&type_id) {
+                let s = read_inline_schema(input, type_id)?;
+                schema_cache.insert(type_id, s);
+            }
+            let schema = schema_cache[&type_id].clone();
+
+            // From Ghidra RE (pk_receive_entity_typed + pk_read_inline_schema):
+            // If the last field has array_count==1 (variable-length), a VERSION/COUNT
+            // int is read before entity_index. For pure-variable entities (BSPLINE_VERTICES,
+            // KNOT_MULT, REAL_VALUES, ATT_DEF_ID, etc.), this count IS the array length.
+            // For ATTRIBUTE (has fixed fields + variable tail), no version is read
+            // because we model it as 9 fixed fields (non-variable).
+            let has_version = schema.is_variable;
+            let var_count = if has_version {
+                read_int32(input)? as usize
+            } else {
+                0
+            };
+
+            let entity_index = read_int32(input)? as usize;
+            let entity = read_entity_fields(input, type_id, entity_index, var_count, &schema)?;
+            for _ in 0..partition_count {
+                let _ = read_int32(input)?;
+            }
+            Ok(entity)
+        })();
+
+        match result {
+            Ok(entity) => entities.push(entity),
+            Err(e) => {
+                eprintln!(
+                    "[xt-winnow] stopped at type_id={} after {} entities: {}",
+                    type_id, entities.len(), e
+                );
+                break;
+            }
+        }
+    }
+
+    Ok(entities)
+}
+
+// ── Inline schema reading ───────────────────────────────────────────────────
+
+fn read_inline_schema(input: &mut &str, type_id: u16) -> Result<InlineSchema> {
+    if let Some(base) = schema::ps13_schema(type_id) {
+        read_inline_schema_path_a(input, type_id, &base)
+    } else {
+        read_inline_schema_path_b(input, type_id)
+    }
+}
+
+/// Path A: type has PS13 base schema → read annotation diff.
+fn read_inline_schema_path_a(
+    input: &mut &str,
+    type_id: u16,
+    base: &EntitySchema,
+) -> Result<InlineSchema> {
+    let n_new_fields = read_uint8(input)?;
+
+    // 255 (0xFF) or 0 = use base schema as-is (no annotation diffs).
+    if n_new_fields == 255 || n_new_fields == 0 {
+        return Ok(inline_schema_from_base(base));
+    }
+
+    let mut fields: Vec<FieldDesc> = Vec::new();
+    let mut base_idx: usize = 0;
+
+    loop {
+        let ch = read_raw_byte(input)?;
+        match ch {
+            'C' => {
+                if base_idx < base.fields.len() {
+                    fields.push(field_desc_from_base(base.fields[base_idx]));
+                } else {
+                    // Base schema incomplete — default to pointer.
+                    fields.push(FieldDesc {
+                        type_char: 'p',
+                        entity_type_id: 0,
+                        array_count: 0,
+                        element_type: false,
+                    });
+                }
+                base_idx += 1;
+            }
+            'D' => {
+                base_idx += 1;
+            }
+            'I' | 'A' => {
+                let fd = read_field_descriptor(input)?;
+                fields.push(fd);
+            }
+            'Z' => {
+                break;
+            }
+            other => {
+                return Err(XtError::Parse {
+                    offset: 0,
+                    detail: format!(
+                        "inline schema type {}: unexpected annotation char {:?} (0x{:02x})",
+                        type_id, other, other as u8
+                    ),
+                });
+            }
+        }
+    }
+
+    Ok(InlineSchema {
+        fields,
+        is_variable: base.is_variable,
+        var_type: base.var_type,
+    })
+}
+
+/// Path B: completely new type → read full field descriptor list.
+fn read_inline_schema_path_b(input: &mut &str, type_id: u16) -> Result<InlineSchema> {
+    let n_fields = read_uint8(input)?;
+    let _type_name = read_type_name(input)?;
+    let _alias_name = read_type_name(input)?;
+
+    let mut fields = Vec::with_capacity(n_fields as usize);
+    for _ in 0..n_fields {
+        fields.push(read_field_descriptor(input)?);
+    }
+
+    Ok(InlineSchema {
+        fields,
+        is_variable: false,
+        var_type: None,
+    })
+}
+
+fn read_field_descriptor(input: &mut &str) -> Result<FieldDesc> {
+    let _field_type_name = read_type_name(input)?;
+    let entity_type_id = read_uint16(input)?;
+    let array_count = read_int32(input)? as i32;
+
+    // entity_type_id == 0: raw data field → sub_name gives element type
+    // entity_type_id > 0: pointer to entity → type is 'p'
+    let type_char = if entity_type_id == 0 {
+        let sub_name = read_type_name(input)?;
+        sub_name.chars().next().unwrap_or('d')
+    } else {
+        'p'
+    };
+
+    let element_type = if array_count == 1 {
+        read_bool_tf(input)?
+    } else {
+        false
+    };
+
+    Ok(FieldDesc {
+        type_char,
+        entity_type_id,
+        array_count,
+        element_type,
+    })
+}
+
+// ── Entity field reading ────────────────────────────────────────────────────
+
+fn read_entity_fields(
+    input: &mut &str,
+    type_id: u16,
+    index: usize,
+    var_count: usize,
+    schema: &InlineSchema,
+) -> Result<RawEntity> {
+    let mut entity = RawEntity {
+        type_id,
+        index,
+        fields: Vec::with_capacity(schema.fields.len()),
+        var_f64: Vec::new(),
+        var_i16: Vec::new(),
+        var_ptr: Vec::new(),
+        var_char: Vec::new(),
+    };
+
+    // Read fixed fields first.
+    for fd in &schema.fields {
+        let val = read_field_value(input, fd)?;
+        entity.fields.push(val);
+    }
+
+    // If the entity has a trailing variable-length array, read it.
+    // Variable-length entities: the var_count (from the VERSION field read
+    // before entity_index) determines the array element count.
+    if schema.is_variable {
+        let count = var_count;
+        match schema.var_type {
+            Some(VarType::F64) => {
+                for _ in 0..count {
+                    entity.var_f64.push(read_f64(input)?);
+                }
+            }
+            Some(VarType::I16) => {
+                for _ in 0..count {
+                    entity.var_i16.push(read_int16(input)?);
+                }
+            }
+            Some(VarType::Ptr) => {
+                for _ in 0..count {
+                    entity.var_ptr.push(read_int32(input)? as usize);
+                }
+            }
+            Some(VarType::Char) | Some(VarType::RawChar) => {
+                for _ in 0..count {
+                    entity.var_char.push(read_raw_byte(input)?);
+                }
+            }
+            Some(VarType::V3) => {
+                for _ in 0..count {
+                    entity.var_f64.push(read_f64(input)?);
+                    entity.var_f64.push(read_f64(input)?);
+                    entity.var_f64.push(read_f64(input)?);
+                }
+            }
+            None => {
+                for _ in 0..count {
+                    let _ = read_int32(input)?;
+                }
+            }
+        }
+    }
+
+    Ok(entity)
+}
+
+fn read_field_value(input: &mut &str, fd: &FieldDesc) -> Result<FieldVal> {
+    let count = match fd.array_count {
+        0 => 1usize,
+        1 => read_int32(input)? as usize, // variable-length
+        n => n as usize,                   // fixed array
+    };
+
+    // Read first element, discard the rest for multi-element fields.
+    let first = read_single_field(input, fd.type_char)?;
+    for _ in 1..count {
+        let _ = read_single_field(input, fd.type_char)?;
+    }
+    Ok(first)
+}
+
+fn read_single_field(input: &mut &str, type_char: char) -> Result<FieldVal> {
+    match type_char {
+        'p' | 't' => Ok(FieldVal::Ptr(read_ptr(input)?)),
+        'd' => Ok(FieldVal::Int(read_int32(input)?)),
+        'f' => Ok(FieldVal::Float(read_f64(input)?)),
+        'c' => Ok(FieldVal::Char(read_raw_byte(input)?)),
+        'u' => {
+            // Read as int32 and truncate to u8 — text format can have values > 255
+            // for packed multi-byte fields like ATTRIB_DEF.actions×8.
+            let v = read_int32(input)? as u8;
+            Ok(FieldVal::Byte(v))
+        }
+        'v' => {
+            let x = read_f64(input)?;
+            let y = read_f64(input)?;
+            let z = read_f64(input)?;
+            Ok(FieldVal::Vec3([x, y, z]))
+        }
+        'b' => {
+            // Box: 6 doubles (we store as 2 Vec3s, only keep first as Vec3)
+            let x1 = read_f64(input)?;
+            let y1 = read_f64(input)?;
+            let z1 = read_f64(input)?;
+            let _x2 = read_f64(input)?;
+            let _y2 = read_f64(input)?;
+            let _z2 = read_f64(input)?;
+            Ok(FieldVal::Vec3([x1, y1, z1]))
+        }
+        'n' | 'w' => Ok(FieldVal::Short(read_int16(input)?)),
+        'l' => Ok(FieldVal::Bool(read_bool_tf(input)?)),
+        'i' => {
+            let lo = read_f64(input)?;
+            let hi = read_f64(input)?;
+            Ok(FieldVal::Interval([lo, hi]))
+        }
+        'q' => {
+            // Quaternion: NOT read from stream, zeroed.
+            Ok(FieldVal::Float(0.0))
+        }
+        's' => {
+            // Opaque skip token: read and discard one whitespace-delimited token.
+            token::ws(input).map_err(|_| XtError::UnexpectedEof)?;
+            let _ = winnow::token::take_while::<_, _, winnow::error::ContextError>(
+                1.., |c: char| !c.is_ascii_whitespace()
+            ).parse_next(input).map_err(|_| XtError::UnexpectedEof)?;
+            consume_space(input);
+            Ok(FieldVal::Int(0))
+        }
+        'h' => {
+            // Handle: vector + 4 doubles + vector + double = complex.
+            // Read first vector, skip rest.
+            let x = read_f64(input)?;
+            let y = read_f64(input)?;
+            let z = read_f64(input)?;
+            for _ in 0..4 { let _ = read_f64(input)?; }
+            let _ = read_f64(input)?;
+            let _ = read_f64(input)?;
+            let _ = read_f64(input)?;
+            let _ = read_f64(input)?;
+            Ok(FieldVal::Vec3([x, y, z]))
+        }
+        other => Err(XtError::Parse {
+            offset: 0,
+            detail: format!("unknown field type char {:?}", other),
+        }),
+    }
+}
+
+// ── Schema helpers ──────────────────────────────────────────────────────────
+
+fn inline_schema_from_base(base: &EntitySchema) -> InlineSchema {
+    InlineSchema {
+        fields: base.fields.iter().map(|ft| field_desc_from_base(*ft)).collect(),
+        is_variable: base.is_variable,
+        var_type: base.var_type,
+    }
+}
+
+fn field_desc_from_base(ft: FieldType) -> FieldDesc {
+    let type_char = match ft {
+        FieldType::D => 'd',
+        FieldType::U => 'u',
+        FieldType::N => 'n',
+        FieldType::F64 => 'f',
+        FieldType::C => 'c',
+        FieldType::L => 'l',
+        FieldType::P => 'p',
+        FieldType::V => 'v',
+        FieldType::I => 'i',
+        FieldType::F64x9 => 'f',
+        FieldType::FVlaIdx => 'f', // variable-length float array indexed by entity_index
+        FieldType::S => 's',       // opaque skip token
+    };
+    let array_count = match ft {
+        FieldType::F64x9 => 9,
+        _ => 0,
+    };
+    FieldDesc {
+        type_char,
+        entity_type_id: 0,
+        array_count,
+        element_type: false,
+    }
+}
+
+// ── Low-level readers ───────────────────────────────────────────────────────
+// All decimal readers consume the trailing space (matching Parasolid behavior).
+
+fn read_raw_byte(input: &mut &str) -> Result<char> {
+    any::<&str, winnow::error::ContextError>
+        .parse_next(input)
+        .map_err(|_| XtError::UnexpectedEof)
+}
+
+/// Read an entity pointer, handling optional `?` prefix (optional/absent pointer).
+fn read_ptr(input: &mut &str) -> Result<usize> {
+    token::ws(input).map_err(|_| XtError::UnexpectedEof)?;
+    // Skip optional '?' prefix
+    if input.starts_with('?') {
+        *input = &input[1..];
+    }
+    let v = ascii::dec_int::<&str, i64, winnow::error::ContextError>
+        .parse_next(input)
+        .map_err(|_| XtError::UnexpectedEof)?;
+    consume_space(input);
+    Ok(v.max(0) as usize)
+}
+
+fn read_uint16(input: &mut &str) -> Result<u16> {
+    token::ws(input).map_err(|_| XtError::UnexpectedEof)?;
+    let v = ascii::dec_uint::<&str, u16, winnow::error::ContextError>
+        .parse_next(input)
+        .map_err(|_| XtError::UnexpectedEof)?;
+    consume_space(input);
+    Ok(v)
+}
+
+fn read_int32(input: &mut &str) -> Result<i64> {
+    token::ws(input).map_err(|_| XtError::UnexpectedEof)?;
+    let v = ascii::dec_int::<&str, i64, winnow::error::ContextError>
+        .parse_next(input)
+        .map_err(|_| XtError::UnexpectedEof)?;
+    consume_space(input);
+    Ok(v)
+}
+
+fn read_uint8(input: &mut &str) -> Result<u8> {
+    token::ws(input).map_err(|_| XtError::UnexpectedEof)?;
+    let v = ascii::dec_uint::<&str, u8, winnow::error::ContextError>
+        .parse_next(input)
+        .map_err(|_| XtError::UnexpectedEof)?;
+    consume_space(input);
+    Ok(v)
+}
+
+fn read_int16(input: &mut &str) -> Result<i16> {
+    token::ws(input).map_err(|_| XtError::UnexpectedEof)?;
+    let v = ascii::dec_int::<&str, i16, winnow::error::ContextError>
+        .parse_next(input)
+        .map_err(|_| XtError::UnexpectedEof)?;
+    consume_space(input);
+    Ok(v)
+}
+
+fn read_f64(input: &mut &str) -> Result<f64> {
+    token::ws(input).map_err(|_| XtError::UnexpectedEof)?;
+    if input.starts_with('?') {
+        *input = &input[1..];
+        consume_space(input);
+        return Ok(f64::NAN);
+    }
+    let v = token::xt_float(input).map_err(|_| XtError::UnexpectedEof)?;
+    consume_space(input);
+    Ok(v)
+}
+
+fn read_bool_tf(input: &mut &str) -> Result<bool> {
+    token::ws(input).map_err(|_| XtError::UnexpectedEof)?;
+    let ch = read_raw_byte(input)?;
+    match ch {
+        'T' | '1' => Ok(true),
+        'F' | '0' => Ok(false),
+        other => Err(XtError::Parse {
+            offset: 0,
+            detail: format!("expected T/F/1/0 boolean, got {:?}", other),
+        }),
+    }
+}
+
+fn read_type_name(input: &mut &str) -> Result<String> {
+    let len = read_uint8(input)? as usize;
+    let mut name = String::with_capacity(len);
+    for _ in 0..len {
+        name.push(read_raw_byte(input)?);
+    }
+    Ok(name)
+}
+
+fn consume_space(input: &mut &str) {
+    if input.starts_with(' ') {
+        *input = &input[1..];
+    }
+}
