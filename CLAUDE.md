@@ -367,7 +367,7 @@ cargo run --release --example validate -- ~/cadatomic/xt-parser/test-data/abc/xt
 | 00000008 | 21 | 21 | 34 | 34 | match |
 | 00000009 | 6 | 6 | 5 | 5 | match |
 
-6/6 perfect match. 100 ABC models: 90/100 parse OK, 89/100 STEP face/edge match. Remaining 10 parse failures from digit concatenation across X_T line breaks (column-80 wrapping). 4 "OK but mismatched" models have XT > STEP face counts (extra sheet/wire bodies in multi-file XT).
+6/6 perfect match. **1000 ABC models: 1000/1000 parse OK (100%), 947/1000 STEP match (94.7%)**. 53 mismatches are almost all XT > STEP (extra sheet/wire bodies in multi-file XT).
 
 ---
 
@@ -493,9 +493,9 @@ Located at `~/cadatomic/xt-parser/test-data/abc/`:
 
 ## Known Issues
 
-1. **ATTRIBUTE is variable-length** — sch_13006: 7 fixed fields + variable pointer array (VERSION int = array count). PS30 files typically have version=1 (1 pointer).
-2. **ATTRIB_DEF.callbacks transmitted despite transmit=0** — PS30 transmits this field. Hardcoded in schema.
-7. **Digit concatenation at line breaks** — X_T column-80 wrapping can split numbers across lines. After newline stripping, `3\n1` becomes `31`. This is intentional for long floats (17-digit) but causes desync when integer tokens happen to fall at column 80. Affects ~10% of Onshape ABC models. Fix requires implementing Parasolid's exact trailing-space-before-newline stripping logic (see entity_field_reader.md §2.2).
+1. **ATTRIBUTE is variable-length** — sch_13006: 7 fixed fields (D,P,P,P,P,P,P) + variable pointer array. VERSION int = array count. PS30 files typically have version=1.
+2. **ATTRIB_DEF is variable-length** — sch_13006: 26 fixed fields (P,P,D, 8×U, P, 14×L) + variable uint array. `callbacks` field has transmit=0 (NOT in stream). VERSION int = array count.
+7. **Newline stripping** — X_T column-80 wrapping intentionally splits long floats (17 sig figs) across lines. Filter-based newline stripping (remove `\n`/`\r`) correctly concatenates these. The Parasolid buffer refill also strips trailing spaces before newlines, but the X_T writer ensures token-terminating spaces are placed so that only floats span line breaks, not integer tokens.
 3. **build.rs BODY field indices** — PS30 annotated BODY has 34 fields; geometry chain pointers at [19,20,21] (surf/curve/point), shell at [18], body_type at [14], region at [24]. PS13 base (23 fields) uses [3,4,5] for geometry, [16] for shell.
 5. **Vertex under-counting** — some XT files omit VERTEX/POINT entities entirely. STEP infers vertices from edge endpoints; XT doesn't always serialize them.
 6. **`?` notation** — Behavior depends on field type:

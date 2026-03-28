@@ -94,6 +94,7 @@ pub struct RawEntity {
     pub fields: Vec<FieldVal>,
     pub var_f64: Vec<f64>,
     pub var_i16: Vec<i16>,
+    pub var_i32: Vec<i64>,
     pub var_ptr: Vec<usize>,
     pub var_char: Vec<char>,
 }
@@ -163,8 +164,9 @@ pub fn parse_entities(input: &mut &str, partition_count: usize) -> Result<Vec<Ra
             // If the last field has array_count==1 (variable-length), a VERSION/COUNT
             // int is read before entity_index. For pure-variable entities (BSPLINE_VERTICES,
             // KNOT_MULT, REAL_VALUES, ATT_DEF_ID, etc.), this count IS the array length.
-            // For ATTRIBUTE (has fixed fields + variable tail), no version is read
-            // because we model it as 9 fixed fields (non-variable).
+            // For ATTRIBUTE (7 fixed fields + variable pointer tail), a VERSION int
+            // is also read before entity_index; var_count pointer values follow
+            // the fixed fields.
             let has_version = schema.is_variable;
             let var_count = if has_version {
                 read_int32(input)? as usize
@@ -198,14 +200,14 @@ pub fn parse_entities(input: &mut &str, partition_count: usize) -> Result<Vec<Ra
 // ── Inline schema reading ───────────────────────────────────────────────────
 
 fn read_inline_schema(input: &mut &str, type_id: u16) -> Result<InlineSchema> {
-    if let Some(base) = schema::ps13_schema(type_id) {
+    if let Some(base) = schema::base_schema(type_id) {
         read_inline_schema_path_a(input, type_id, &base)
     } else {
         read_inline_schema_path_b(input, type_id)
     }
 }
 
-/// Path A: type has PS13 base schema → read annotation diff.
+/// Path A: type has base schema (sch_13006) → read annotation diff.
 fn read_inline_schema_path_a(
     input: &mut &str,
     type_id: u16,
@@ -352,6 +354,7 @@ fn read_entity_fields(
         fields: Vec::with_capacity(schema.fields.len()),
         var_f64: Vec::new(),
         var_i16: Vec::new(),
+        var_i32: Vec::new(),
         var_ptr: Vec::new(),
         var_char: Vec::new(),
     };
@@ -383,6 +386,11 @@ fn read_entity_fields(
             Some(VarType::I16) => {
                 for _ in 0..count {
                     entity.var_i16.push(read_int16(input)?);
+                }
+            }
+            Some(VarType::I32) => {
+                for _ in 0..count {
+                    entity.var_i32.push(read_int32(input)?);
                 }
             }
             Some(VarType::Ptr) => {
@@ -503,16 +511,12 @@ fn read_single_field(input: &mut &str, type_char: char) -> Result<FieldVal> {
             Ok(FieldVal::Int(0))
         }
         'h' => {
-            // Handle: vector + 4 doubles + vector + double = complex.
-            // Read first vector, skip rest.
+            // Only pvec (3 doubles) is transmitted; other hvec components
+            // are recalculated by Parasolid on load. Reference section 2.1.4:
+            // "only the position vector is written to XT data".
             let x = read_f64(input)?;
             let y = read_f64(input)?;
             let z = read_f64(input)?;
-            for _ in 0..4 { let _ = read_f64(input)?; }
-            let _ = read_f64(input)?;
-            let _ = read_f64(input)?;
-            let _ = read_f64(input)?;
-            let _ = read_f64(input)?;
             Ok(FieldVal::Vec3([x, y, z]))
         }
         other => Err(XtError::Parse {
@@ -600,6 +604,14 @@ fn read_uint16(input: &mut &str) -> Result<u16> {
 
 fn read_int32(input: &mut &str) -> Result<i64> {
     token::ws(input).map_err(|_| XtError::UnexpectedEof)?;
+    // `?` = unset sentinel for integers (-32764 in Parasolid).
+    // Reference section 3.2: "represented in a text transmit file as
+    // the question mark '?'".
+    if input.starts_with('?') {
+        *input = &input[1..];
+        consume_space(input);
+        return Ok(-32764);
+    }
     let v = ascii::dec_int::<&str, i64, winnow::error::ContextError>
         .parse_next(input)
         .map_err(|_| XtError::UnexpectedEof)?;
@@ -618,6 +630,11 @@ fn read_uint8(input: &mut &str) -> Result<u8> {
 
 fn read_int16(input: &mut &str) -> Result<i16> {
     token::ws(input).map_err(|_| XtError::UnexpectedEof)?;
+    if input.starts_with('?') {
+        *input = &input[1..];
+        consume_space(input);
+        return Ok(-32764);
+    }
     let v = ascii::dec_int::<&str, i16, winnow::error::ContextError>
         .parse_next(input)
         .map_err(|_| XtError::UnexpectedEof)?;

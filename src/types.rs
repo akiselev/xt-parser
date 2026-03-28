@@ -20,6 +20,9 @@ pub struct XtHeader {
     pub schema_key: String,
     /// ISO-8601 date if present.
     pub date: Option<String>,
+    /// User field size from PART2 (USFLD_SIZE). Each entity has this many
+    /// extra integer words after its regular fields. 0 = no user fields.
+    pub user_field_size: u32,
 }
 
 // ── Topology ─────────────────────────────────────────────────────────────────
@@ -230,7 +233,8 @@ pub struct XtBlendSurface {
     pub spine_curve_key: usize,
     /// XT indices of the two support surfaces.
     pub support_surface_keys: [usize; 2],
-    pub radius: f64,
+    /// Lower bound of the blend parameter range (from sch_13006 `range` field).
+    pub range_start: f64,
 }
 
 // ── Geometry — Curves ────────────────────────────────────────────────────────

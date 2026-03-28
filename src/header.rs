@@ -38,7 +38,7 @@ pub fn split_header(text: &str) -> Result<(&str, &str)> {
 }
 
 /// Parse header metadata from the header text.
-pub fn parse_header(header_text: &str) -> XtHeader {
+pub fn parse_header(header_text: &str) -> Result<XtHeader> {
     let mut h = XtHeader::default();
 
     let mut in_part = 0u8; // 0 = before PART1, 1 = PART1, 2 = PART2
@@ -83,11 +83,18 @@ pub fn parse_header(header_text: &str) -> XtHeader {
                 (2, "SCH") => {
                     h.schema_key = val.to_string();
                 }
+                (2, "USFLD_SIZE") => {
+                    h.user_field_size = val.parse().map_err(|_| {
+                        crate::error::XtError::InvalidHeader(
+                            format!("invalid USFLD_SIZE value: {:?}", val),
+                        )
+                    })?;
+                }
                 _ => {}
             }
         }
     }
-    h
+    Ok(h)
 }
 
 #[cfg(test)]
@@ -121,10 +128,11 @@ body data here";
     #[test]
     fn parse_metadata() {
         let (hdr, _) = split_header(SAMPLE_HEADER).unwrap();
-        let h = parse_header(hdr);
+        let h = parse_header(hdr).unwrap();
         assert_eq!(h.version, "30.1.168");
         assert_eq!(h.application, "Onshape");
         assert_eq!(h.schema_key, "SCH_3001168_30100");
         assert_eq!(h.date.as_deref(), Some("2018-04-27T08:24:19 (UTC)"));
+        assert_eq!(h.user_field_size, 0);
     }
 }

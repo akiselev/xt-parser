@@ -49,10 +49,11 @@ fn build_one_body(
 
     // Field layout depends on the PS version and annotation diffs applied.
     //
-    // PS13 base schema (23 transmitted fields, 0-indexed):
-    //   0=node_id, 1=attr, 2=owner, 3=surf_chain, 4=curve_chain, 5=point_chain,
-    //   6=precision, 7=res_size, 8=res_linear, ..., 15=body_type, 16=shell,
-    //   17=bsurf, 18=bcurve, 19=bpoint, 20=region
+    // Base schema / sch_13006 (23 transmitted fields, 0-indexed):
+    //   0=highest_node_id, 1=attr, 2=attr_chains, 3=surface, 4=curve, 5=point,
+    //   6=key, 7=res_size, 8=res_linear, 9=ref_instance, 10=next, 11=prev,
+    //   12=state, 13=owner, 14=body_type, 15=nom_geom_state, 16=shell,
+    //   17=bsurf, 18=bcurve, 19=bpoint, 20=region, 21=edge, 22=vertex
     //
     // PS30+ annotated (34 fields from Onshape/SolidWorks):
     //   Annotation diffs insert extra fields, shifting positions.
@@ -64,8 +65,8 @@ fn build_one_body(
             // PS30+ annotated layout (34 fields)
             (9, 10, 14, 18, 19, 20, 21, 24)
         } else {
-            // PS13 base layout (23 fields)
-            (7, 8, 15, 16, 3, 4, 5, 20)
+            // Base schema layout (23 fields)
+            (7, 8, 14, 16, 3, 4, 5, 20)
         };
 
     let node_id = f.get(0).map(|v| v.as_i64()).unwrap_or(0);
@@ -184,10 +185,11 @@ fn build_surface(ent: &RawEntity, idx: &HashMap<usize, &RawEntity>) -> Option<Xt
             }))
         }
         schema::CYLINDER => {
+            // Reference 5.2.2.2: pvec[7], axis[8], radius[9], x_axis[10]
             let point = f.get(7)?.as_vec3();
             let axis = f.get(8)?.as_vec3();
-            let ref_dir = f.get(9)?.as_vec3();
-            let radius = f.get(10)?.as_f64();
+            let radius = f.get(9)?.as_f64();
+            let ref_dir = f.get(10)?.as_vec3();
             Some(XtSurface::Cylinder(XtCylinder {
                 basis: XtBasisSet {
                     location: point,
@@ -198,11 +200,15 @@ fn build_surface(ent: &RawEntity, idx: &HashMap<usize, &RawEntity>) -> Option<Xt
             }))
         }
         schema::CONE => {
+            // Reference 5.2.2.3: pvec[7], axis[8], radius[9],
+            //   sin_half_angle[10], cos_half_angle[11], x_axis[12]
             let apex = f.get(7)?.as_vec3();
             let axis = f.get(8)?.as_vec3();
-            let ref_dir = f.get(9)?.as_vec3();
-            let radius = f.get(10)?.as_f64();
-            let semi_angle = f.get(11)?.as_f64();
+            let radius = f.get(9)?.as_f64();
+            let sin_ha = f.get(10)?.as_f64();
+            let cos_ha = f.get(11)?.as_f64();
+            let ref_dir = f.get(12)?.as_vec3();
+            let semi_angle = sin_ha.atan2(cos_ha);
             Some(XtSurface::Cone(XtCone {
                 basis: XtBasisSet {
                     location: apex,
@@ -214,10 +220,11 @@ fn build_surface(ent: &RawEntity, idx: &HashMap<usize, &RawEntity>) -> Option<Xt
             }))
         }
         schema::SPHERE => {
+            // Reference 5.2.2.4: centre[7], radius[8], axis[9], x_axis[10]
             let centre = f.get(7)?.as_vec3();
-            let axis = f.get(8)?.as_vec3();
-            let ref_dir = f.get(9)?.as_vec3();
-            let radius = f.get(10)?.as_f64();
+            let radius = f.get(8)?.as_f64();
+            let axis = f.get(9)?.as_vec3();
+            let ref_dir = f.get(10)?.as_vec3();
             Some(XtSurface::Sphere(XtSphere {
                 basis: XtBasisSet {
                     location: centre,
@@ -228,11 +235,12 @@ fn build_surface(ent: &RawEntity, idx: &HashMap<usize, &RawEntity>) -> Option<Xt
             }))
         }
         schema::TORUS => {
+            // Reference 5.2.2.5: centre[7], axis[8], major_r[9], minor_r[10], x_axis[11]
             let centre = f.get(7)?.as_vec3();
             let axis = f.get(8)?.as_vec3();
-            let ref_dir = f.get(9)?.as_vec3();
-            let major_r = f.get(10)?.as_f64();
-            let minor_r = f.get(11)?.as_f64();
+            let major_r = f.get(9)?.as_f64();
+            let minor_r = f.get(10)?.as_f64();
+            let ref_dir = f.get(11)?.as_vec3();
             Some(XtSurface::Torus(XtTorus {
                 basis: XtBasisSet {
                     location: centre,
@@ -267,22 +275,27 @@ fn build_surface(ent: &RawEntity, idx: &HashMap<usize, &RawEntity>) -> Option<Xt
             }))
         }
         schema::OFFSET_SURF => {
-            let base_ptr = f.get(7)?.as_ptr();
-            let offset = f.get(8)?.as_f64();
+            // Reference 5.2.2.8: check[7](c), true_offset[8](l), surface[9](p),
+            //   offset[10](f), scale[11](f)
+            let base_ptr = f.get(9)?.as_ptr();
+            let offset = f.get(10)?.as_f64();
             Some(XtSurface::Offset(XtOffsetSurface {
                 base_surface_key: base_ptr,
                 offset_distance: offset,
             }))
         }
         schema::BLENDED_EDGE => {
-            let surf1_ptr = f.get(7)?.as_ptr();
-            let surf2_ptr = f.get(8)?.as_ptr();
-            let spine_ptr = f.get(9)?.as_ptr();
-            let radius = f.get(10)?.as_f64();
+            // Reference 5.2.2.6: blend_type[7](c), surface[8,9](p×2),
+            //   spine[10](p), range[11,12](f×2), ...
+            let _blend_type = f.get(7)?.as_char();
+            let surf1_ptr = f.get(8)?.as_ptr();
+            let surf2_ptr = f.get(9)?.as_ptr();
+            let spine_ptr = f.get(10)?.as_ptr();
+            let range_start = f.get(11)?.as_f64();
             Some(XtSurface::Blend(XtBlendSurface {
                 spine_curve_key: spine_ptr,
                 support_surface_keys: [surf1_ptr, surf2_ptr],
-                radius,
+                range_start,
             }))
         }
         _ => None,
@@ -379,6 +392,8 @@ fn build_curve(ent: &RawEntity, idx: &HashMap<usize, &RawEntity>) -> Option<XtCu
             }))
         }
         schema::ELLIPSE => {
+            // sch_13006.s_t: sense[6](c), centre[7](v), normal[8](v),
+            //   x_axis[9](v), major_radius[10](f), minor_radius[11](f)
             let centre = f.get(7)?.as_vec3();
             let axis = f.get(8)?.as_vec3();
             let ref_dir = f.get(9)?.as_vec3();
@@ -399,16 +414,18 @@ fn build_curve(ent: &RawEntity, idx: &HashMap<usize, &RawEntity>) -> Option<XtCu
             build_bspline_curve(nurbs_ptr, idx)
         }
         schema::INTERSECTION => {
+            // P2 at [7] stores only surf1 (surf2 discarded by read_field_value).
+            // chart lands at [8], start at [9], end at [10].
             let surf1 = f.get(7)?.as_ptr();
-            let surf2 = f.get(8)?.as_ptr();
-            let chart_ptr = f.get(9)?.as_ptr();
+            // surf2 is not available (discarded by P2 collapsing)
+            let chart_ptr = f.get(8)?.as_ptr();
             let approx = if let Some(chart) = idx.get(&chart_ptr) {
                 chart_to_points(&chart.var_f64)
             } else {
                 Vec::new()
             };
             Some(XtCurve::Intersection(XtIntersectionCurve {
-                surface_keys: [surf1, surf2],
+                surface_keys: [surf1, 0],
                 approx_points: approx,
             }))
         }
@@ -426,9 +443,11 @@ fn build_curve(ent: &RawEntity, idx: &HashMap<usize, &RawEntity>) -> Option<XtCu
             }))
         }
         schema::TRIMMED_CURVE => {
+            // sch_13006: basis_curve[7](p), point_1[8](v), point_2[9](v),
+            //   parm_1[10](f), parm_2[11](f)
             let basis_ptr = f.get(7)?.as_ptr();
-            let t0 = f.get(8)?.as_f64();
-            let t1 = f.get(9)?.as_f64();
+            let t0 = f.get(10)?.as_f64();
+            let t1 = f.get(11)?.as_f64();
             Some(XtCurve::Trimmed(XtTrimmedCurve {
                 basis_curve_key: basis_ptr,
                 t_start: t0,
@@ -494,12 +513,11 @@ fn build_regions(
     let mut visited = std::collections::HashSet::new();
     while ptr != 0 && visited.insert(ptr) {
         if let Some(ent) = by_ti.get(&(schema::REGION, ptr)) {
-            // PS13 REGION fields:
-            //   0:D(node_id), 1:P(attr), 2:L(is_solid), 3:P(shell), 4:P(body),
-            //   5:P(next_region), 6:C(region_type)
-            // Annotated REGION (8 fields) may add extra fields.
-            let is_solid = ent.fields.get(2).map(|v| v.as_bool()).unwrap_or(false);
-            let shell_ptr = ent.fields.get(3).map(|v| v.as_ptr()).unwrap_or(0);
+            // sch_13006 REGION fields:
+            //   0:D(node_id), 1:P(attr), 2:P(body), 3:P(next),
+            //   4:P(prev), 5:P(shell), 6:C(type='S'/'V')
+            let is_solid = ent.fields.get(6).map(|v| v.as_char()) == Some('S');
+            let shell_ptr = ent.fields.get(5).map(|v| v.as_ptr()).unwrap_or(0);
             let mut shell_indices = Vec::new();
             let mut sp = shell_ptr;
             let mut sv = std::collections::HashSet::new();

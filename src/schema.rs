@@ -1,7 +1,7 @@
 //! Entity schemas and compact-format schema preamble parser.
 //!
 //! The compact transmit format embeds schema diffs in the file preamble.
-//! Each entity type has a PS13 base schema that is modified by annotation
+//! Each entity type has a base schema (sch_13006) that is modified by annotation
 //! characters: C (copy), I (insert), D (delete), A (append).
 
 use winnow::prelude::*;
@@ -64,10 +64,14 @@ pub const POINTER_LIS_BLOCK: u16 = 74;
 pub const ATT_DEF_ID: u16 = 79;
 pub const ATTRIB_DEF: u16 = 80;
 pub const ATTRIBUTE: u16 = 81;
-pub const ATTRIBUTE_HOLDER: u16 = 82;
+pub const INT_VALUES: u16 = 82;
 pub const REAL_VALUES: u16 = 83;
-pub const INT_VALUES: u16 = 84;
-pub const CHAR_VALUES: u16 = 85;
+pub const CHAR_VALUES: u16 = 84;
+pub const POINT_VALUES: u16 = 85;
+pub const VECTOR_VALUES: u16 = 86;
+pub const AXIS_VALUES: u16 = 87;
+pub const TAG_VALUES: u16 = 88;
+pub const DIRECTION_VALUES: u16 = 89;
 pub const FEATURE: u16 = 90;
 pub const MEMBER_OF_FEATURE: u16 = 91;
 pub const TRANSFORM: u16 = 100;
@@ -255,6 +259,9 @@ pub struct EntitySchema {
 pub enum VarType {
     F64,
     I16,
+    /// Signed 32-bit integer. Used by INT_VALUES (type 82) whose schema
+    /// field type is `d` (int32).
+    I32,
     Ptr,
     Char,
     /// Raw byte char: reads one byte without skipping leading whitespace.
@@ -266,17 +273,19 @@ pub enum VarType {
     V3,
 }
 
-// ── PS13 base schemas ────────────────────────────────────────────────────────
+// ── Base schemas (sch_13006) ─────────────────────────────────────────────────
 
 use FieldType::*;
 
-/// Return the PS13 base schema for a given entity type.
-/// Schemas are derived from the authoritative Parasolid schema file
-/// sch_13006.s_t (modeller version 1300120/13006). Only fields with
+/// Return the base schema for a given entity type.
+///
+/// All XT files use sch_13006 as the base for inline schema diffs
+/// (reference section 2.1.2: "differences between its schema and a
+/// defined base schema (currently V13's SCH_13006)"). Only fields with
 /// transmit_flag=1 are included. Fields with extra2>1 are expanded
 /// inline (e.g. `surface; p; 1 0 2` → two P fields).
 /// Returns `None` for unknown types.
-pub fn ps13_schema(type_id: u16) -> Option<EntitySchema> {
+pub fn base_schema(type_id: u16) -> Option<EntitySchema> {
     let (fields, is_variable, var_type) = match type_id {
         // ── Type 1: NULLP ─────────────────────────────────────────
         1 => (vec![], false, None),
@@ -392,9 +401,12 @@ pub fn ps13_schema(type_id: u16) -> Option<EntitySchema> {
         CIRCLE => (vec![D, P, P, P, P, P, C, V, V, V, F64], false, None),
 
         // ── Type 32: ELLIPSE ──────────────────────────────────────
-        // All 12 transmitted: node_id(d), attributes_features(p), owner(p),
-        //   next(p), previous(p), geometric_owner(p), sense(c), centre(v),
-        //   normal(v), x_axis(v), major_radius(f), minor_radius(f)
+        // All 12 transmitted (sch_13006.s_t): node_id(d), attributes_features(p),
+        //   owner(p), next(p), previous(p), geometric_owner(p), sense(c),
+        //   centre(v), normal(v), x_axis(v), major_radius(f), minor_radius(f)
+        // NOTE: sch_13006.s_t has sense BEFORE centre (same as other curves).
+        // The reference doc C struct (5.2.1.3) shows a different order but the
+        // schema file is authoritative for the transmit format.
         ELLIPSE => (vec![D, P, P, P, P, P, C, V, V, V, F64, F64], false, None),
 
         // ── Type 33: PARABOLA ─────────────────────────────────────
@@ -433,9 +445,10 @@ pub fn ps13_schema(type_id: u16) -> Option<EntitySchema> {
 
         // ── Type 38: INTERSECTION ─────────────────────────────────
         // Transmitted: node_id(d), attributes_features(p), owner(p), next(p),
-        //   previous(p), geometric_owner(p), sense(c), surface(p, extra2=2→2P),
+        //   previous(p), geometric_owner(p), sense(c), surface(p, extra2=2→P2),
         //   chart(p), start(p), end(p)
-        // surface; p; 1 1006 2 → P2 (reads 2 pointers from stream)
+        // NOTE: P2 reads both surface pointers from stream but only stores
+        // the first in entity.fields[7]. surf2 is discarded. chart lands at [8].
         // scale; f; transmit=0 → omitted
         INTERSECTION => (
             vec![D, P, P, P, P, P, C, P2, P, P, P],
@@ -739,17 +752,20 @@ pub fn ps13_schema(type_id: u16) -> Option<EntitySchema> {
         // callbacks(p) — transmitted in PS30 despite sch_30100 transmit=0,
         // field_names(p), legal_owners(l×14), fields(u×1)
         // NOT variable-length: fields has extra2=1 = fixed 1-element array.
+        // sch_13006: 8 fields, callbacks(p) has transmit=0 → skip.
+        // Last field 'fields' has extra2=1 → variable-length uint array.
+        // Transmitted fixed: next(p), identifier(p), type_id(d), actions(u×8),
+        //   field_names(p), legal_owners(l×14)
+        // Variable tail: fields(u) with count from VERSION int.
         ATTRIB_DEF => (
             vec![
                 P, P, D,
                 U, U, U, U, U, U, U, U,  // actions×8
-                P,                         // callbacks
                 P,                         // field_names
                 L, L, L, L, L, L, L, L, L, L, L, L, L, L,  // legal_owners×14
-                U,                         // fields (1 element)
             ],
-            false,
-            None,
+            true,
+            Some(VarType::I16),  // fields: uint values stored as i16
         ),
 
         // Type 78 (ATTRIB_CALLBACKS) omitted: transmit=0 in sch_13006,
@@ -774,11 +790,13 @@ pub fn ps13_schema(type_id: u16) -> Option<EntitySchema> {
         // ── Types 82-89: Attribute value entities ──────────────
         // Pure variable: VERSION int = array count, then entity_handle, then data.
         // No fixed fields — the version/count is handled by has_version logic.
-        ATTRIBUTE_HOLDER => (vec![], true, Some(VarType::I16)),   // INT_VALUES (d→i16)
-        REAL_VALUES => (vec![], true, Some(VarType::F64)),        // REAL_VALUES (f)
-        INT_VALUES => (vec![], true, Some(VarType::RawChar)),     // CHAR_VALUES (c)
-        CHAR_VALUES | 86 | 87 | 89 => (vec![], true, Some(VarType::V3)), // POINT/VECTOR/AXIS/DIR
-        88 => (vec![], true, Some(VarType::Ptr)),                 // TAG_VALUES (t→ptr)
+        // Reference sections 5.4.7–5.4.15.
+        INT_VALUES => (vec![], true, Some(VarType::I32)),         // 82: INT_VALUES (d→int32)
+        REAL_VALUES => (vec![], true, Some(VarType::F64)),        // 83: REAL_VALUES (f)
+        CHAR_VALUES => (vec![], true, Some(VarType::RawChar)),    // 84: CHAR_VALUES (c)
+        POINT_VALUES | VECTOR_VALUES | AXIS_VALUES | DIRECTION_VALUES =>
+            (vec![], true, Some(VarType::V3)),                    // 85-87,89: $v[] types
+        TAG_VALUES => (vec![], true, Some(VarType::Ptr)),         // 88: TAG_VALUES (t→ptr)
 
         // ── Type 90: FEATURE ─────────────────────────────────────
         // All 7 transmitted: node_id(d), attributes_features(p), owner(p),
@@ -1031,19 +1049,10 @@ pub fn ps13_schema(type_id: u16) -> Option<EntitySchema> {
         None
     };
 
-    // Types where entity_index encodes the variable array element count.
-    // ATT_DEF_ID (79): entity_idx = char count of attribute name string.
-    // ATTRIBUTE_HOLDER (82 = INT_VALUES in schema): entity_idx = int count.
-    // INT_VALUES (84 = CHAR_VALUES in schema): entity_idx = char count.
-    // REAL_VALUES (83): entity_idx = float count.
-    // LIMIT (41): entity_idx = hvec (V3) count.
-    // INTERSECTION_DATA (204): entity_idx = float count.
-    let entity_index_is_var_count = type_id == LIMIT
-        || type_id == INTERSECTION_DATA
-        || type_id == ATT_DEF_ID
-        || type_id == ATTRIBUTE_HOLDER
-        || type_id == INT_VALUES
-        || type_id == REAL_VALUES;
+    // NOTE: entity_index_is_var_count is NOT used by entity.rs — the variable
+    // array count always comes from the VERSION token read before entity_index,
+    // not from entity_index itself. This field is retained only as documentation.
+    let entity_index_is_var_count = false;
 
     Some(EntitySchema {
         type_id,
@@ -1064,8 +1073,8 @@ pub fn ps13_schema(type_id: u16) -> Option<EntitySchema> {
 ///
 /// BLENDED_VERTEX (57) and BLEND_OVERLAP (58) use `D P P P P P V` when
 /// version=0, versus their version>0 layout (V first, no node_id) cached in
-/// ps13_schema.
-pub fn ps13_version0_schema(type_id: u16) -> Option<EntitySchema> {
+/// base_schema.
+pub fn base_version0_schema(type_id: u16) -> Option<EntitySchema> {
     let (fields, is_variable, var_type, var_count_field_idx) = match type_id {
         CHART => (
             // Old CHART layout: chart_id (D) precedes the float fields.
@@ -1147,7 +1156,7 @@ pub fn ps13_version0_schema(type_id: u16) -> Option<EntitySchema> {
 }
 
 /// Return the schema for PS30+ extended entity types that appear via the
-/// path-B compact path-A fallback (i.e., types not in ps13_schema whose
+/// path-B compact path-A fallback (i.e., types not in base_schema whose
 /// first occurrence in a partition is written in path-B format, but whose
 /// actual field layout is known empirically).
 ///

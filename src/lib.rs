@@ -47,13 +47,22 @@ pub fn parse_xt_file<P: AsRef<Path>>(path: P) -> Result<XtFile> {
 pub fn parse_xt(text: &str) -> Result<XtFile> {
     // Phase 0: Split header and body.
     let (header_text, body_text) = header::split_header(text)?;
-    let header = header::parse_header(header_text);
+    let header = header::parse_header(header_text)?;
 
     // Check for binary format marker
     if body_text.starts_with("PS") || body_text.starts_with("\x50\x53") {
         return Err(XtError::UnsupportedEncoding(
             "binary X_B format not supported".into(),
         ));
+    }
+
+    // Reject non-zero user field sizes — the entity parser has no support
+    // for skipping user field integers after each entity's regular fields.
+    if header.user_field_size != 0 {
+        return Err(XtError::UnsupportedEncoding(format!(
+            "USFLD_SIZE={} not supported (entity parser cannot skip user fields)",
+            header.user_field_size,
+        )));
     }
 
     // Phase 1: Parse T-line and get the newline-stripped body.
