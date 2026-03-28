@@ -7,7 +7,7 @@
 //! # Example
 //!
 //! ```no_run
-//! let file = xt_winnow::parse_xt_file("model.x_t").unwrap();
+//! let file = xt_parser::parse_xt_file("model.x_t").unwrap();
 //! for body in &file.bodies {
 //!     println!("body type: {:?}, shells: {}", body.body_type, body.shells.len());
 //!     for shell in &body.shells {

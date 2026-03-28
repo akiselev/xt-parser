@@ -135,7 +135,7 @@ pub fn parse_entities(input: &mut &str, partition_count: usize) -> Result<Vec<Ra
             Ok(t) => t,
             Err(e) => {
                 eprintln!(
-                    "[xt-winnow] type_id read failed after {} entities: {} (next: {:?})",
+                    "[xt-parser] type_id read failed after {} entities: {} (next: {:?})",
                     entities.len(), e, &input[..30.min(input.len())]
                 );
                 break;
@@ -184,7 +184,7 @@ pub fn parse_entities(input: &mut &str, partition_count: usize) -> Result<Vec<Ra
             Ok(entity) => entities.push(entity),
             Err(e) => {
                 eprintln!(
-                    "[xt-winnow] stopped at type_id={} after {} entities: {}",
+                    "[xt-parser] stopped at type_id={} after {} entities: {}",
                     type_id, entities.len(), e
                 );
                 break;

@@ -367,7 +367,7 @@ cargo run --release --example validate -- ~/cadatomic/xt-parser/test-data/abc/xt
 | 00000008 | 21 | 21 | 34 | 34 | match |
 | 00000009 | 6 | 6 | 5 | 5 | match |
 
-6/6 perfect match. 100 ABC models: 90% parse OK, 86% STEP match. Remaining 10 failures from unknown entity types or `h`-type compound fields causing stream desync. 4 "OK but mismatched" models have XT > STEP face counts (extra sheet/wire bodies in multi-file XT not present in STEP).
+6/6 perfect match. 100 ABC models: 90/100 parse OK, 89/100 STEP face/edge match. Remaining 10 parse failures from digit concatenation across X_T line breaks (column-80 wrapping). 4 "OK but mismatched" models have XT > STEP face counts (extra sheet/wire bodies in multi-file XT).
 
 ---
 
@@ -493,8 +493,9 @@ Located at `~/cadatomic/xt-parser/test-data/abc/`:
 
 ## Known Issues
 
-1. **ATTRIBUTE has 9 fields in PS30** — sch_13006 says 8 but PS30 adds a 9th. Hardcoded as 9 fixed fields, non-variable.
+1. **ATTRIBUTE is variable-length** — sch_13006: 7 fixed fields + variable pointer array (VERSION int = array count). PS30 files typically have version=1 (1 pointer).
 2. **ATTRIB_DEF.callbacks transmitted despite transmit=0** — PS30 transmits this field. Hardcoded in schema.
+7. **Digit concatenation at line breaks** — X_T column-80 wrapping can split numbers across lines. After newline stripping, `3\n1` becomes `31`. This is intentional for long floats (17-digit) but causes desync when integer tokens happen to fall at column 80. Affects ~10% of Onshape ABC models. Fix requires implementing Parasolid's exact trailing-space-before-newline stripping logic (see entity_field_reader.md §2.2).
 3. **build.rs BODY field indices** — PS30 annotated BODY has 34 fields; geometry chain pointers at [19,20,21] (surf/curve/point), shell at [18], body_type at [14], region at [24]. PS13 base (23 fields) uses [3,4,5] for geometry, [16] for shell.
 5. **Vertex under-counting** — some XT files omit VERTEX/POINT entities entirely. STEP infers vertices from edge endpoints; XT doesn't always serialize them.
 6. **`?` notation** — Behavior depends on field type:

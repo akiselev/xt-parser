@@ -73,7 +73,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "xt-winnow"
+name = "xt-parser"
 version = "0.1.0"
 dependencies = [
  "thiserror",

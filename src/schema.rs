@@ -761,15 +761,14 @@ pub fn ps13_schema(type_id: u16) -> Option<EntitySchema> {
         // Variable: fields(p, extra2=1)
         // 8 fields: node_id(d), definition(p), owner(p), next(p),
         //   previous(p), next_of_type(p), previous_of_type(p), fields(p)
-        // The 8th field 'fields' has extra2=1 in sch_13006 but in practice
-        // is transmitted as a single scalar pointer (not a variable array).
-        // PS30 transmits 9 fields for ATTRIBUTE (sch_13006 says 8, but
-        // an additional field was added by PS30's annotation diff which uses
-        // n_new_fields=255 meaning "same as WRITER's base" — NOT sch_13006 base).
+        // sch_13006: 8 fields, last field 'fields' has extra2=1 (variable-length).
+        // The VERSION int before entity_index IS the variable array count.
+        // 7 fixed fields (D + 6P), then var_count × pointer values.
+        // PS30 annotation may add fields but n_new_fields=255 means base schema.
         ATTRIBUTE => (
-            vec![D, P, P, P, P, P, P, P, P],
-            false,
-            None,
+            vec![D, P, P, P, P, P, P],
+            true,
+            Some(VarType::Ptr),
         ),
 
         // ── Types 82-89: Attribute value entities ──────────────
@@ -1643,7 +1642,10 @@ pub fn parse_tline(body: &str) -> crate::error::Result<(u32, u64, String)> {
     }
 
     // Strip ALL newlines from the entire body to create seamless stream.
-    // This matches how the real Parasolid parser treats the buffer.
+    // This matches Parasolid's buffer refill behavior: newlines are stripped
+    // and long tokens (17-digit floats) intentionally span line breaks.
+    // The X_T writer ensures token-terminating spaces are placed so that
+    // concatenation only happens within a single token, not between tokens.
     let stripped: String = body
         .chars()
         .filter(|c| *c != '\n' && *c != '\r')
