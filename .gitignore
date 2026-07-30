@@ -1,0 +1,8 @@
+/target/
+/inputs/*
+!/inputs/README.md
+/work/*
+!/work/README.md
+*.x_t
+*.x_b
+*.xt

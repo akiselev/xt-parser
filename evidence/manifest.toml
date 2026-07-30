@@ -1,0 +1,118 @@
+format_version = 1
+
+[[source]]
+id = "xt-format-reference-2022-07"
+kind = "documented"
+path = "/home/dev/old-projects/xt-parser/xt-reference.md"
+sha256 = "6d049da8d5ef7735d20db4f9ad004e1ad7f25bb0f78b518e8986a3e434f91157"
+redistribution = "local-only"
+notes = "Primary physical and logical XT format reference."
+
+[[source]]
+id = "parasolid-37.01.243"
+kind = "runtime-target"
+path = "/home/dev/projects/parasolid-re/inputs/pskernel.dll"
+sha256 = "c900fa3f430fe67c2adb15a50f9604d9812ed81a02c5006b66689dac28263073"
+size = 72669552
+version = "37.01.243"
+redistribution = "local-only"
+
+[[source]]
+id = "parasolid-re-data-model"
+kind = "static-observed"
+path = "/home/dev/projects/parasolid-re/catalog/data-model.tsv"
+sha256 = "f7ae4cda51ff801874e703b9954b8cdbf9fe97d5967a0199d28996f9b2d584fb"
+repository_commit = "c4b16ca72c8f19260322d6fb008984cee9499035"
+notes = "Field inventory derived from SCH_33103; useful structurally, not a replacement for SCH_13006."
+
+[[source]]
+id = "parasolid-re-function-layers"
+kind = "static-observed"
+path = "/home/dev/projects/parasolid-re/catalog/function-layers.tsv"
+sha256 = "dd6c826c3d7d471d806935922681646f8d238c5f9640daeaf3a2eee22e503742"
+repository_commit = "c4b16ca72c8f19260322d6fb008984cee9499035"
+
+[[source]]
+id = "parasolid-rs-oracle"
+kind = "dynamic-observed"
+path = "/home/dev/projects/parasolid-rs"
+repository_commit = "b580122b07480f067853c872e781c713d73f2742"
+notes = "Validated public-PK transmit/receive and model query layer."
+
+[[source]]
+id = "solidworks-sch-13006"
+kind = "documented"
+path = "/mnt/c/Program Files/SOLIDWORKS Corp/SOLIDWORKS/data/pschema/sch_13006.s_t"
+sha256 = "cc98d0c96c959cc0216cee45e4adb785340ed99af7ecb6129f84633a738846af"
+normalized_sha256 = "0dd291ea706fc306f16a78140e05e595e75c85ab63e4077e68941b127fcfdcc3"
+redistribution = "local-only"
+notes = "Exact code-generation input; LF-normalized content matches the public PKToy copy."
+
+[[source]]
+id = "solidworks-sch-30100"
+kind = "documented"
+path = "/mnt/c/Program Files/SOLIDWORKS Corp/SOLIDWORKS/data/pschema/sch_30100.s_t"
+sha256 = "fa7e505b120bf384996060dde4acdb3af2c193efcc64b6fda3813015f8298259"
+normalized_sha256 = "18838cb90466615a57c841896d3842044e97e85f2b5e33b62c41222f4e37ece5"
+redistribution = "local-only"
+notes = "Exact code-generation input; LF-normalized content matches the public PKToy copy."
+
+[[source]]
+id = "solidworks-sch-37102"
+kind = "documented"
+path = "/mnt/c/Program Files/SOLIDWORKS Corp/SOLIDWORKS/data/pschema/sch_37102.s_t"
+sha256 = "7345f7094df516530a7a858d145e80caa80dfbdfe75b8bd51dc7dbc1acc6012d"
+normalized_sha256 = "c2d06b56144524347834699b33d9dbfe7e6a1b8d3cd125b1a4d68593464f8e5f"
+redistribution = "local-only"
+notes = "Exact code-generation input used by the public-PK V37 binary fixtures."
+
+[[source]]
+id = "parasolid-v37-block-format-family"
+kind = "dynamic-observed"
+path = "/home/dev/projects/xt-parser/inputs/oracle-binary"
+text_sha256 = "e94fd9e00b1512a25b8324c58512be8f1ffbffb09bd550b142c480dfd9d37b79"
+bare_sha256 = "348a08dfd53fc5f590fdb7be4b911574b9d99965b231851f446a472d845a200a"
+neutral_sha256 = "31ccea477548845d7fd4bb936c788031a800b7e404b97b797d3751ad84b3374e"
+typed_sha256 = "698f6f54e207e8be0dda1a6b7432a1515fe4c4bbb68c10b8b643a0fa6abc154a"
+redistribution = "local-only"
+binary_files = 18
+fixture_families = 6
+notes = "Six public-PK synthetic bodies transmitted in four encodings; the block parses to 87 generated SCH_37102 nodes."
+
+[[source]]
+id = "parasolid-v37-abcd-binary-pilot"
+kind = "dynamic-observed"
+path = "/home/dev/projects/xt-parser/inputs/oracle-binary-abcd-25/manifest.json"
+sha256 = "dd4bfd918206cff5c2a673f350486a9eb252a1330de5673614d10cce170df1f1"
+source_text_files = 25
+binary_files = 75
+binary_nodes_parsed = 14655
+errors = 0
+redistribution = "local-only"
+notes = "ABCD SCH_30100 text received by public PK V37 and retransmitted as bare, neutral, and typed SCH_37102 binary."
+
+[[source]]
+id = "parasolid-v37-abcd-binary-expanded"
+kind = "dynamic-observed"
+path = "/home/dev/projects/xt-parser/inputs/oracle-binary-abcd-250/manifest.json"
+sha256 = "3791538dde7a34d3f470e3f970732104d70e0a69f55baa55abd6eb27d503478f"
+source_text_files = 250
+binary_files = 750
+binary_nodes_parsed = 184431
+errors = 0
+redistribution = "local-only"
+notes = "Evenly selected ABCD SCH_30100 text received by public PK V37 and retransmitted as bare, neutral, and typed SCH_37102 binary."
+
+[[source]]
+id = "abcd-local-corpus"
+kind = "external-corpus"
+path = "/home/dev/projects/xt-parser-validation"
+downloader_repository = "/home/dev/projects/abcd"
+downloader_commit = "89339abf799fa79de3eb7c95a35ddfc050bc04f8"
+xt_files_observed = 23093
+step_files_observed = 1000
+featurescript_files_observed = 1
+xt_corpus_sha256 = "b7eb11f60db540257096f0951245bd85d23f88e1a37edc9b25337bb458907acd"
+xt_bytes_parsed = 893321443
+xt_nodes_parsed = 14599019
+notes = "All XT files passed raw parsing and generated schema-30100 typed conversion."
