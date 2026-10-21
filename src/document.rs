@@ -100,11 +100,7 @@ impl XtDocument {
     /// the base are variable-length; a new type it cannot vouch for is an error.
     pub fn parse_text_embedded(input: &[u8], base: &Schema, dictionary: &Schema) -> Result<Self> {
         let envelope = TextEnvelope::parse(input)?;
-        validate_embedded_selection(
-            &envelope.prefix.schema_name,
-            envelope.prefix.span,
-            base,
-        )?;
+        validate_embedded_selection(&envelope.prefix.schema_name, envelope.prefix.span, base)?;
         let mut cursor = envelope.stream.cursor_at(envelope.node_start)?;
         let graph = parse_graph(&mut cursor, base, Selection::Embedded(dictionary))?;
         Ok(Self {
@@ -255,14 +251,16 @@ fn parse_graph<C: DocumentCursor>(
             }
         }
 
-        let schema_update = if layouts.contains_key(&node_type) {
-            None
-        } else {
-            let embedded = read_first_node_schema(cursor, node_type, base)?;
-            let update = embedded.update;
-            let layout = resolve_layout(selection, base, node_type, embedded, cursor)?;
-            layouts.insert(node_type, layout);
-            Some(update)
+        let schema_update = match layouts.entry(node_type) {
+            std::collections::btree_map::Entry::Occupied(_) => None,
+            std::collections::btree_map::Entry::Vacant(entry) => {
+                let embedded = read_first_node_schema(cursor, node_type, base)?;
+                let update = embedded.update;
+                entry.insert(resolve_layout(
+                    selection, base, node_type, embedded, cursor,
+                )?);
+                Some(update)
+            }
         };
         let layout = &layouts[&node_type];
 
@@ -620,9 +618,11 @@ fn read_first_node_schema<C: DocumentCursor>(
     let start = cursor.position();
     let flag = cursor.read_u8()?;
     let (embedded, update, new_name) = match base.node(node_type) {
-        Some(base_node) if flag == u8::MAX => {
-            (effective_fields(base_node), SchemaUpdateKind::BaseMatch, None)
-        }
+        Some(base_node) if flag == u8::MAX => (
+            effective_fields(base_node),
+            SchemaUpdateKind::BaseMatch,
+            None,
+        ),
         Some(base_node) => {
             let mut edits = Vec::new();
             let mut instruction_count = 0usize;
@@ -716,7 +716,10 @@ fn resolve_layout<C: DocumentCursor>(
     match selection {
         Selection::Exact(target) => {
             let target_node = target.node(node_type).ok_or_else(|| {
-                node_error(span, format!("node type {node_type} is absent from target schema"))
+                node_error(
+                    span,
+                    format!("node type {node_type} is absent from target schema"),
+                )
             })?;
             let target_effective = effective_fields(target_node);
             if !same_fields(&embedded.fields, &target_effective) {
@@ -1174,7 +1177,11 @@ number; d; 1 0 0 \n\
         let error =
             BinaryXtDocument::parse_embedded(&edited_file(), &base, &dictionary, None).unwrap_err();
         assert_eq!(error.kind, ErrorKind::InvalidSchema);
-        assert!(error.context.contains("variable-length"), "{}", error.context);
+        assert!(
+            error.context.contains("variable-length"),
+            "{}",
+            error.context
+        );
     }
 
     #[test]

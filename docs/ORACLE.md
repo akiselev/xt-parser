@@ -72,7 +72,7 @@ entity tolerances use the relative form `1e-9 * max(|a|,|b|)`):
 | Category | Native | Parasolid |
 |---|---|---|
 | `counts` | regions, shells, faces, loops, edges, vertices, fins from the view | `PK_BODY_ask_*`, loop fins |
-| `surface_classes`, `curve_classes` | multiset of carrier classes | `PK_SURF_ask_class` / curve type mapped to the same classes |
+| `surface_classes`, `curve_classes` | multiset of carrier classes | `PK_SURF`/`PK_CURVE` type mapped to the same classes |
 | `surface_params`, `curve_params` | plane origin and normal; cylinder/cone/torus origin, axis, radii, cone half angle; sphere centre and radius; line, circle, ellipse | `PK_*_ask` |
 | `vertex_positions` | vertex points | `PK_VERTEX_ask_point` |
 | `tolerances` | edge and vertex tolerance, `None` for unset (exact) | `PK_EDGE/VERTEX_ask_precision`; a value of at most half the session precision is exact |

@@ -15,8 +15,7 @@ use parasolid::{
     Behaviour, Body, CurveType, FrustrumConfig, Session, SessionConfig, SurfType, fileio,
 };
 use xt_xcheck_digest::{
-    BodyDigest, Class, Counts, EdgeDigest, FaceDigest, FileDigest, Geometry, Outcome,
-    VertexDigest,
+    BodyDigest, Class, Counts, EdgeDigest, FaceDigest, FileDigest, Geometry, Outcome, VertexDigest,
 };
 
 type Described<T> = Result<T, String>;
@@ -230,7 +229,11 @@ fn surface_geometry(surf: &parasolid::Surf) -> Described<Geometry> {
             let d = q("cone", surf.ask_cone())?;
             (
                 Class::Cone,
-                flat(&[&v(d.basis.origin), &v(d.basis.axis), &[d.radius, d.semi_angle]]),
+                flat(&[
+                    &v(d.basis.origin),
+                    &v(d.basis.axis),
+                    &[d.radius, d.semi_angle],
+                ]),
             )
         }
         SurfType::Sphere => {

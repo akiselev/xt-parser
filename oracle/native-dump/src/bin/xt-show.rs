@@ -5,7 +5,9 @@
 
 fn main() -> Result<(), String> {
     let mut args = std::env::args().skip(1);
-    let path = args.next().ok_or("usage: xt-show FILE INDEX... | FILE --type NAME")?;
+    let path = args
+        .next()
+        .ok_or("usage: xt-show FILE INDEX... | FILE --type NAME")?;
     let rest: Vec<String> = args.collect();
     let bytes = std::fs::read(&path).map_err(|e| e.to_string())?;
     let document = xt_schema::parse_text_30100(&bytes).map_err(|e| e.to_string())?;
@@ -23,7 +25,10 @@ fn main() -> Result<(), String> {
             wanted.contains(&record.file_index)
         };
         if selected {
-            println!("{}", serde_json::to_string(node).map_err(|e| e.to_string())?);
+            println!(
+                "{}",
+                serde_json::to_string(node).map_err(|e| e.to_string())?
+            );
         }
     }
     Ok(())

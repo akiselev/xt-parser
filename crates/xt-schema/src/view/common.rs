@@ -197,19 +197,38 @@ pub struct Ellipse {
 /// error is `Unsupported`; the others describe a malformed graph.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ViewError {
-    RecordCountMismatch { records: usize, nodes: usize },
-    DuplicateIndex { index: u32 },
-    DanglingPointer { field: &'static str, index: u32 },
-    UnsetPointer { field: &'static str },
-    NullPointer { field: &'static str },
+    RecordCountMismatch {
+        records: usize,
+        nodes: usize,
+    },
+    DuplicateIndex {
+        index: u32,
+    },
+    DanglingPointer {
+        field: &'static str,
+        index: u32,
+    },
+    UnsetPointer {
+        field: &'static str,
+    },
+    NullPointer {
+        field: &'static str,
+    },
     WrongNode {
         field: &'static str,
         expected: &'static str,
         found: String,
     },
-    UnsetValue { field: &'static str },
-    BadEnumeration { field: &'static str, value: u8 },
-    Cycle { field: &'static str },
+    UnsetValue {
+        field: &'static str,
+    },
+    BadEnumeration {
+        field: &'static str,
+        value: u8,
+    },
+    Cycle {
+        field: &'static str,
+    },
 }
 
 impl fmt::Display for ViewError {

@@ -10,9 +10,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use parasolid::{Behaviour, FrustrumConfig, Session, SessionConfig, fileio};
-use parasolid_sys::{
-    PK_PART_transmit, PK_PART_transmit_o_t, PK_transmit_format_text_c,
-};
+use parasolid_sys::{PK_PART_transmit, PK_PART_transmit_o_t, PK_transmit_format_text_c};
 
 fn main() {
     if let Err(message) = run() {
@@ -23,7 +21,9 @@ fn main() {
 
 fn run() -> Result<(), String> {
     let mut args = std::env::args().skip(1);
-    let list = args.next().ok_or("usage: xt-pk-reencode LIST OUT_DIR VERSION...")?;
+    let list = args
+        .next()
+        .ok_or("usage: xt-pk-reencode LIST OUT_DIR VERSION...")?;
     let out_dir = PathBuf::from(args.next().ok_or("missing OUT_DIR")?);
     let versions: Vec<i32> = args
         .map(|a| a.parse().map_err(|_| format!("bad version {a}")))

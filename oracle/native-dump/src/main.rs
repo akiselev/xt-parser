@@ -12,8 +12,7 @@ use xt_schema::view::{
     sch_30100::{Curve, LoopBoundary, Model, Surface},
 };
 use xt_xcheck_digest::{
-    BodyDigest, Class, Counts, EdgeDigest, FaceDigest, FileDigest, Geometry, Outcome,
-    VertexDigest,
+    BodyDigest, Class, Counts, EdgeDigest, FaceDigest, FileDigest, Geometry, Outcome, VertexDigest,
 };
 
 fn main() {
@@ -25,7 +24,9 @@ fn main() {
 
 fn run() -> Result<(), String> {
     let mut args = std::env::args().skip(1);
-    let list = args.next().ok_or("usage: xt-native-dump LIST OUT [--threads N]")?;
+    let list = args
+        .next()
+        .ok_or("usage: xt-native-dump LIST OUT [--threads N]")?;
     let out = args.next().ok_or("missing OUT")?;
     let mut threads = 4usize;
     while let Some(flag) = args.next() {
@@ -192,20 +193,22 @@ fn describe_body(body: xt_schema::view::sch_30100::Body<'_>) -> Result<BodyDiges
         });
     }
 
-    let bounds = vertex_digests.iter().fold(None, |acc: Option<[f64; 6]>, v| {
-        let p = v.position;
-        Some(match acc {
-            None => [p[0], p[1], p[2], p[0], p[1], p[2]],
-            Some(b) => [
-                b[0].min(p[0]),
-                b[1].min(p[1]),
-                b[2].min(p[2]),
-                b[3].max(p[0]),
-                b[4].max(p[1]),
-                b[5].max(p[2]),
-            ],
-        })
-    });
+    let bounds = vertex_digests
+        .iter()
+        .fold(None, |acc: Option<[f64; 6]>, v| {
+            let p = v.position;
+            Some(match acc {
+                None => [p[0], p[1], p[2], p[0], p[1], p[2]],
+                Some(b) => [
+                    b[0].min(p[0]),
+                    b[1].min(p[1]),
+                    b[2].min(p[2]),
+                    b[3].max(p[0]),
+                    b[4].max(p[1]),
+                    b[5].max(p[2]),
+                ],
+            })
+        });
 
     Ok(BodyDigest {
         body_type: format!("{:?}", body.kind()?).to_lowercase(),

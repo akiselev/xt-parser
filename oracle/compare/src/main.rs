@@ -6,7 +6,10 @@
 use std::collections::{BTreeMap, HashMap};
 use std::io::Write;
 
-use xt_xcheck_digest::{FileDigest, compare::{Category, Verdict, compare_files}};
+use xt_xcheck_digest::{
+    FileDigest,
+    compare::{Category, Verdict, compare_files},
+};
 
 fn read(path: &str) -> Result<Vec<FileDigest>, String> {
     std::fs::read_to_string(path)
@@ -69,17 +72,28 @@ fn run() -> Result<(), String> {
             }
             Verdict::OracleSilent { stage, message } => {
                 silent += 1;
-                *by_silent.entry(format!("{stage}: {}", first_words(message))).or_insert(0) += 1;
+                *by_silent
+                    .entry(format!("{stage}: {}", first_words(message)))
+                    .or_insert(0) += 1;
                 ("oracle_silent", stage.clone(), message.clone())
             }
             Verdict::NativeError { stage, message } => {
                 native_error += 1;
-                *by_native.entry(format!("{stage}: {}", first_words(message))).or_insert(0) += 1;
+                *by_native
+                    .entry(format!("{stage}: {}", first_words(message)))
+                    .or_insert(0) += 1;
                 ("native_error", stage.clone(), message.clone())
             }
         };
-        writeln!(tsv, "{}\t{}\t{}\t{}", clean(&file.path), name, categories, clean(&detail))
-            .map_err(|e| e.to_string())?;
+        writeln!(
+            tsv,
+            "{}\t{}\t{}\t{}",
+            clean(&file.path),
+            name,
+            categories,
+            clean(&detail)
+        )
+        .map_err(|e| e.to_string())?;
     }
     tsv.flush().map_err(|e| e.to_string())?;
 
@@ -101,5 +115,9 @@ fn run() -> Result<(), String> {
 }
 
 fn first_words(message: &str) -> String {
-    message.split_whitespace().take(8).collect::<Vec<_>>().join(" ")
+    message
+        .split_whitespace()
+        .take(8)
+        .collect::<Vec<_>>()
+        .join(" ")
 }

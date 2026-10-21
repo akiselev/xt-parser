@@ -284,7 +284,10 @@ fn walks_regions_shells_faces_loops_and_fins() {
             assert_eq!(fin.edge().unwrap().file_index(), edge);
             assert_eq!(fin.sense().unwrap(), Sense::Forward);
             assert!(fin.other().unwrap().is_none());
-            assert_eq!(fin.next().unwrap().file_index(), FIN[(fin.file_index() as usize - 7 + 1) % 3]);
+            assert_eq!(
+                fin.next().unwrap().file_index(),
+                FIN[(fin.file_index() as usize - 7 + 1) % 3]
+            );
         }
     });
 }
@@ -371,7 +374,12 @@ fn a_ring_of_other_fins_is_walked_once() {
     }
     with_model(nodes, |model| {
         let edge = model.bodies().next().unwrap().edges().unwrap()[0];
-        let fins: Vec<_> = edge.fins().unwrap().iter().map(|f| f.file_index()).collect();
+        let fins: Vec<_> = edge
+            .fins()
+            .unwrap()
+            .iter()
+            .map(|f| f.file_index())
+            .collect();
         assert_eq!(fins, [7, 8]);
     });
 }
@@ -394,7 +402,12 @@ fn a_loopless_partner_fin_is_not_counted() {
     }
     with_model(nodes, |model| {
         let edge = model.bodies().next().unwrap().edges().unwrap()[0];
-        let fins: Vec<_> = edge.fins().unwrap().iter().map(|f| f.file_index()).collect();
+        let fins: Vec<_> = edge
+            .fins()
+            .unwrap()
+            .iter()
+            .map(|f| f.file_index())
+            .collect();
         assert_eq!(fins, [7]);
     });
 }
@@ -417,9 +430,19 @@ fn wire_edges_and_isolated_vertices_come_from_the_shell() {
     }
     with_model(nodes, |model| {
         let body = model.bodies().next().unwrap();
-        let edges: Vec<_> = body.edges().unwrap().iter().map(|e| e.file_index()).collect();
+        let edges: Vec<_> = body
+            .edges()
+            .unwrap()
+            .iter()
+            .map(|e| e.file_index())
+            .collect();
         assert_eq!(edges, EDGE);
-        let vertices: Vec<_> = body.vertices().unwrap().iter().map(|v| v.file_index()).collect();
+        let vertices: Vec<_> = body
+            .vertices()
+            .unwrap()
+            .iter()
+            .map(|v| v.file_index())
+            .collect();
         assert_eq!(vertices, VERTEX);
     });
 }
@@ -480,7 +503,10 @@ fn malformed_graphs_fail_with_the_field_named() {
         let face = model.bodies().next().unwrap().faces().unwrap()[0];
         assert_eq!(
             face.loops().unwrap_err(),
-            ViewError::DanglingPointer { field: "face.loop", index: 99 }
+            ViewError::DanglingPointer {
+                field: "face.loop",
+                index: 99
+            }
         );
     });
 
@@ -493,7 +519,10 @@ fn malformed_graphs_fail_with_the_field_named() {
         let face = model.bodies().next().unwrap().faces().unwrap()[0];
         assert!(matches!(
             face.back_shell(),
-            Err(ViewError::WrongNode { field: "face.shell", .. })
+            Err(ViewError::WrongNode {
+                field: "face.shell",
+                ..
+            })
         ));
     });
 
@@ -504,7 +533,12 @@ fn malformed_graphs_fail_with_the_field_named() {
     });
     with_model(cyclic, |model| {
         let body = model.bodies().next().unwrap();
-        assert_eq!(body.regions().unwrap_err(), ViewError::Cycle { field: "region.next" });
+        assert_eq!(
+            body.regions().unwrap_err(),
+            ViewError::Cycle {
+                field: "region.next"
+            }
+        );
     });
 
     let unset = broken(&|node| {
@@ -514,7 +548,12 @@ fn malformed_graphs_fail_with_the_field_named() {
     });
     with_model(unset, |model| {
         let edge = model.bodies().next().unwrap().edges().unwrap()[0];
-        assert_eq!(edge.curve().unwrap_err(), ViewError::UnsetPointer { field: "edge.curve" });
+        assert_eq!(
+            edge.curve().unwrap_err(),
+            ViewError::UnsetPointer {
+                field: "edge.curve"
+            }
+        );
     });
 
     let bad_sense = broken(&|node| {
@@ -526,7 +565,10 @@ fn malformed_graphs_fail_with_the_field_named() {
         let face = model.bodies().next().unwrap().faces().unwrap()[0];
         assert_eq!(
             face.sense().unwrap_err(),
-            ViewError::BadEnumeration { field: "face.sense", value: b'x' }
+            ViewError::BadEnumeration {
+                field: "face.sense",
+                value: b'x'
+            }
         );
     });
 }

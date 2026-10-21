@@ -5,10 +5,15 @@
 //! Prints one line per file and a summary; exits 1 if any file disagrees.
 
 fn main() -> Result<(), String> {
-    let list = std::env::args().nth(1).ok_or("usage: xt-embedded-check LIST")?;
+    let list = std::env::args()
+        .nth(1)
+        .ok_or("usage: xt-embedded-check LIST")?;
     let mut agree = 0usize;
     let mut disagree = 0usize;
-    for path in std::fs::read_to_string(&list).map_err(|e| e.to_string())?.lines() {
+    for path in std::fs::read_to_string(&list)
+        .map_err(|e| e.to_string())?
+        .lines()
+    {
         if path.is_empty() {
             continue;
         }

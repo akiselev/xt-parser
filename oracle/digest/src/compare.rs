@@ -66,8 +66,14 @@ pub enum Verdict {
     Pass,
     Fail(Vec<(Category, String)>),
     /// Parasolid did not produce a usable description; never a pass.
-    OracleSilent { stage: String, message: String },
-    NativeError { stage: String, message: String },
+    OracleSilent {
+        stage: String,
+        message: String,
+    },
+    NativeError {
+        stage: String,
+        message: String,
+    },
 }
 
 /// Relative tolerance for entity tolerances, which are tiny numbers an
@@ -121,7 +127,11 @@ pub fn compare_files(native: &FileDigest, oracle: Option<&FileDigest>) -> Verdic
     if native_bodies.len() != oracle_bodies.len() {
         failures.push((
             Category::BodyCount,
-            format!("native {} oracle {}", native_bodies.len(), oracle_bodies.len()),
+            format!(
+                "native {} oracle {}",
+                native_bodies.len(),
+                oracle_bodies.len()
+            ),
         ));
     } else {
         for (n, o) in native_bodies.iter().zip(oracle_bodies) {
@@ -160,8 +170,18 @@ fn compare_body(n: &BodyDigest, o: &BodyDigest, out: &mut Vec<(Category, String)
             format!("native {n_surf:?} oracle {o_surf:?}"),
         ));
     }
-    let n_curve = multiset(n.edges.iter().filter_map(|e| e.curve.as_ref()).map(|g| g.class));
-    let o_curve = multiset(o.edges.iter().filter_map(|e| e.curve.as_ref()).map(|g| g.class));
+    let n_curve = multiset(
+        n.edges
+            .iter()
+            .filter_map(|e| e.curve.as_ref())
+            .map(|g| g.class),
+    );
+    let o_curve = multiset(
+        o.edges
+            .iter()
+            .filter_map(|e| e.curve.as_ref())
+            .map(|g| g.class),
+    );
     if n_curve != o_curve {
         out.push((
             Category::CurveClasses,
@@ -169,10 +189,7 @@ fn compare_body(n: &BodyDigest, o: &BodyDigest, out: &mut Vec<(Category, String)
         ));
     }
 
-    let by_id = ids_agree(
-        n.faces.iter().map(|f| f.id),
-        o.faces.iter().map(|f| f.id),
-    );
+    let by_id = ids_agree(n.faces.iter().map(|f| f.id), o.faces.iter().map(|f| f.id));
     let faces = pair(&n.faces, &o.faces, by_id, |f| f.id, |f| &f.surface);
     for (nf, of) in &faces {
         if let Some(reason) = geometry_difference(&nf.surface, &of.surface) {
@@ -188,7 +205,10 @@ fn compare_body(n: &BodyDigest, o: &BodyDigest, out: &mut Vec<(Category, String)
         {
             out.push((
                 Category::FaceSense,
-                format!("face {} native {:?} oracle {:?}", nf.id, nf.same_sense, of.same_sense),
+                format!(
+                    "face {} native {:?} oracle {:?}",
+                    nf.id, nf.same_sense, of.same_sense
+                ),
             ));
             break;
         }
@@ -207,16 +227,20 @@ fn compare_body(n: &BodyDigest, o: &BodyDigest, out: &mut Vec<(Category, String)
     if edge_by_id {
         let o_by_id: BTreeMap<i32, _> = o.edges.iter().map(|e| (e.id, e)).collect();
         for ne in &n.edges {
-            let Some(oe) = o_by_id.get(&ne.id) else { continue };
-            if let (Some(a), Some(b)) = (&ne.curve, &oe.curve) {
-                if let Some(reason) = geometry_difference(a, b) {
-                    out.push((Category::CurveParams, format!("edge {}: {reason}", ne.id)));
-                    break;
-                }
+            let Some(oe) = o_by_id.get(&ne.id) else {
+                continue;
+            };
+            if let (Some(a), Some(b)) = (&ne.curve, &oe.curve)
+                && let Some(reason) = geometry_difference(a, b)
+            {
+                out.push((Category::CurveParams, format!("edge {}: {reason}", ne.id)));
+                break;
             }
         }
         for ne in &n.edges {
-            let Some(oe) = o_by_id.get(&ne.id) else { continue };
+            let Some(oe) = o_by_id.get(&ne.id) else {
+                continue;
+            };
             if ne.fins != oe.fins {
                 out.push((
                     Category::EdgeFins,
@@ -226,11 +250,16 @@ fn compare_body(n: &BodyDigest, o: &BodyDigest, out: &mut Vec<(Category, String)
             }
         }
         for ne in &n.edges {
-            let Some(oe) = o_by_id.get(&ne.id) else { continue };
+            let Some(oe) = o_by_id.get(&ne.id) else {
+                continue;
+            };
             if !tolerance_agrees(ne.tolerance, oe.tolerance) {
                 out.push((
                     Category::Tolerances,
-                    format!("edge {} native {:?} oracle {:?}", ne.id, ne.tolerance, oe.tolerance),
+                    format!(
+                        "edge {} native {:?} oracle {:?}",
+                        ne.id, ne.tolerance, oe.tolerance
+                    ),
                 ));
                 break;
             }
@@ -241,30 +270,50 @@ fn compare_body(n: &BodyDigest, o: &BodyDigest, out: &mut Vec<(Category, String)
         let mut b: Vec<f64> = o.edges.iter().map(|e| e.tolerance.unwrap_or(0.0)).collect();
         a.sort_by(f64::total_cmp);
         b.sort_by(f64::total_cmp);
-        if a.len() != b.len() || a.iter().zip(&b).any(|(x, y)| !tolerance_agrees(Some(*x), Some(*y))) {
-            out.push((Category::Tolerances, "edge tolerance multisets differ".to_owned()));
+        if a.len() != b.len()
+            || a.iter()
+                .zip(&b)
+                .any(|(x, y)| !tolerance_agrees(Some(*x), Some(*y)))
+        {
+            out.push((
+                Category::Tolerances,
+                "edge tolerance multisets differ".to_owned(),
+            ));
         }
     }
 
-    let vertex_by_id = ids_agree(n.vertices.iter().map(|v| v.id), o.vertices.iter().map(|v| v.id));
+    let vertex_by_id = ids_agree(
+        n.vertices.iter().map(|v| v.id),
+        o.vertices.iter().map(|v| v.id),
+    );
     if vertex_by_id {
         let o_by_id: BTreeMap<i32, _> = o.vertices.iter().map(|v| (v.id, v)).collect();
         for nv in &n.vertices {
-            let Some(ov) = o_by_id.get(&nv.id) else { continue };
+            let Some(ov) = o_by_id.get(&nv.id) else {
+                continue;
+            };
             if !close_all(&nv.position, &ov.position) {
                 out.push((
                     Category::VertexPositions,
-                    format!("vertex {} native {:?} oracle {:?}", nv.id, nv.position, ov.position),
+                    format!(
+                        "vertex {} native {:?} oracle {:?}",
+                        nv.id, nv.position, ov.position
+                    ),
                 ));
                 break;
             }
         }
         for nv in &n.vertices {
-            let Some(ov) = o_by_id.get(&nv.id) else { continue };
+            let Some(ov) = o_by_id.get(&nv.id) else {
+                continue;
+            };
             if !tolerance_agrees(nv.tolerance, ov.tolerance) {
                 out.push((
                     Category::Tolerances,
-                    format!("vertex {} native {:?} oracle {:?}", nv.id, nv.tolerance, ov.tolerance),
+                    format!(
+                        "vertex {} native {:?} oracle {:?}",
+                        nv.id, nv.tolerance, ov.tolerance
+                    ),
                 ));
                 break;
             }
@@ -280,7 +329,10 @@ fn compare_body(n: &BodyDigest, o: &BodyDigest, out: &mut Vec<(Category, String)
         a.sort_by(key);
         b.sort_by(key);
         if a.len() != b.len() || a.iter().zip(&b).any(|(p, q)| !close_all(p, q)) {
-            out.push((Category::VertexPositions, "vertex multisets differ".to_owned()));
+            out.push((
+                Category::VertexPositions,
+                "vertex multisets differ".to_owned(),
+            ));
         }
     }
 
@@ -289,10 +341,14 @@ fn compare_body(n: &BodyDigest, o: &BodyDigest, out: &mut Vec<(Category, String)
         // check is containment of the native box within the oracle box.
         let slack = |a: f64, b: f64| TOL * (1.0 + a.abs().max(b.abs()));
         let contained = (0..3).all(|i| {
-            ob[i] <= nb[i] + slack(ob[i], nb[i]) && nb[i + 3] <= ob[i + 3] + slack(ob[i + 3], nb[i + 3])
+            ob[i] <= nb[i] + slack(ob[i], nb[i])
+                && nb[i + 3] <= ob[i + 3] + slack(ob[i + 3], nb[i + 3])
         });
         if !contained {
-            out.push((Category::Bounds, format!("native {nb:?} not within oracle {ob:?}")));
+            out.push((
+                Category::Bounds,
+                format!("native {nb:?} not within oracle {ob:?}"),
+            ));
         }
     }
 }
@@ -353,13 +409,18 @@ fn pair<'a, T>(
 
 fn geometry_difference(native: &Geometry, oracle: &Geometry) -> Option<String> {
     if native.class != oracle.class {
-        return Some(format!("class native {:?} oracle {:?}", native.class, oracle.class));
+        return Some(format!(
+            "class native {:?} oracle {:?}",
+            native.class, oracle.class
+        ));
     }
     match (&native.params, &oracle.params) {
         (Some(a), Some(b)) if !close_all(a, b) => {
             Some(format!("{:?} native {a:?} oracle {b:?}", native.class))
         }
-        (Some(_), None) | (None, Some(_)) => Some(format!("{:?} params present on one side", native.class)),
+        (Some(_), None) | (None, Some(_)) => {
+            Some(format!("{:?} params present on one side", native.class))
+        }
         _ => None,
     }
 }
@@ -445,7 +506,10 @@ mod tests {
     #[test]
     fn missing_or_failed_oracle_is_silent_never_pass() {
         let a = file(body(3, plane([0.0; 3], [0.0, 0.0, 1.0])));
-        assert!(matches!(compare_files(&a, None), Verdict::OracleSilent { .. }));
+        assert!(matches!(
+            compare_files(&a, None),
+            Verdict::OracleSilent { .. }
+        ));
         let failed = FileDigest {
             path: "x".to_owned(),
             outcome: Outcome::Failed {
