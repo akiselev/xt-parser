@@ -6,5 +6,14 @@ publish = false
 
 [dependencies]
 parasolid = { path = "../../../parasolid-rs/crates/parasolid" }
+parasolid-sys = { path = "../../../parasolid-rs/crates/parasolid-sys" }
 serde_json = "1"
 xt-xcheck-digest = { path = "../digest" }
+
+[[bin]]
+name = "xt-pk-dump"
+path = "src/main.rs"
+
+[[bin]]
+name = "xt-pk-reencode"
+path = "src/bin/xt-pk-reencode.rs"

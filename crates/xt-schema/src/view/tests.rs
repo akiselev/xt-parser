@@ -376,6 +376,54 @@ fn a_ring_of_other_fins_is_walked_once() {
 }
 
 #[test]
+fn a_loopless_partner_fin_is_not_counted() {
+    let mut nodes = fixture();
+    for node in &mut nodes {
+        if let Node::Halfedge(fin) = node {
+            match fin.file_index {
+                7 => fin.other = ptr(8),
+                8 => {
+                    fin.other = ptr(7);
+                    fin.edge = ptr(EDGE[0]);
+                    fin.r#loop = null();
+                }
+                _ => {}
+            }
+        }
+    }
+    with_model(nodes, |model| {
+        let edge = model.bodies().next().unwrap().edges().unwrap()[0];
+        let fins: Vec<_> = edge.fins().unwrap().iter().map(|f| f.file_index()).collect();
+        assert_eq!(fins, [7]);
+    });
+}
+
+#[test]
+fn wire_edges_and_isolated_vertices_come_from_the_shell() {
+    let mut nodes = fixture();
+    for node in &mut nodes {
+        match node {
+            Node::Body(body) => {
+                body.edge = null();
+                body.vertex = null();
+            }
+            Node::Shell(shell) => {
+                shell.edge = ptr(EDGE[0]);
+                shell.vertex = ptr(VERTEX[0]);
+            }
+            _ => {}
+        }
+    }
+    with_model(nodes, |model| {
+        let body = model.bodies().next().unwrap();
+        let edges: Vec<_> = body.edges().unwrap().iter().map(|e| e.file_index()).collect();
+        assert_eq!(edges, EDGE);
+        let vertices: Vec<_> = body.vertices().unwrap().iter().map(|v| v.file_index()).collect();
+        assert_eq!(vertices, VERTEX);
+    });
+}
+
+#[test]
 fn cone_half_angle_comes_from_sine_and_cosine() {
     let node = Node::Cone(n::Cone {
         file_index: 1,

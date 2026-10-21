@@ -94,6 +94,28 @@ struct ParsedGraph {
 }
 
 impl XtDocument {
+    /// Parse text whose layouts are taken from its own embedded schema edits
+    /// against `base`, so no schema for the file's version is needed. `dictionary`
+    /// (a newer full schema) only says which node types the file adds beyond
+    /// the base are variable-length; a new type it cannot vouch for is an error.
+    pub fn parse_text_embedded(input: &[u8], base: &Schema, dictionary: &Schema) -> Result<Self> {
+        let envelope = TextEnvelope::parse(input)?;
+        validate_embedded_selection(
+            &envelope.prefix.schema_name,
+            envelope.prefix.span,
+            base,
+        )?;
+        let mut cursor = envelope.stream.cursor_at(envelope.node_start)?;
+        let graph = parse_graph(&mut cursor, base, Selection::Embedded(dictionary))?;
+        Ok(Self {
+            envelope,
+            nodes: graph.nodes,
+            terminator: graph.terminator,
+            unresolved_pointer_indices: graph.unresolved_pointer_indices,
+            unresolved_pointers: graph.unresolved_pointers,
+        })
+    }
+
     pub fn parse_text(input: &[u8], base: &Schema, target: &Schema) -> Result<Self> {
         let envelope = TextEnvelope::parse(input)?;
         validate_schema_selection(
@@ -104,7 +126,7 @@ impl XtDocument {
             target,
         )?;
         let mut cursor = envelope.stream.cursor_at(envelope.node_start)?;
-        let graph = parse_graph(&mut cursor, base, target)?;
+        let graph = parse_graph(&mut cursor, base, Selection::Exact(target))?;
         Ok(Self {
             envelope,
             nodes: graph.nodes,
@@ -116,6 +138,26 @@ impl XtDocument {
 }
 
 impl BinaryXtDocument {
+    /// Binary counterpart of [`XtDocument::parse_text_embedded`].
+    pub fn parse_embedded(
+        input: &[u8],
+        base: &Schema,
+        dictionary: &Schema,
+        bare_machine: Option<MachineEncoding>,
+    ) -> Result<Self> {
+        let envelope = BinaryEnvelope::parse_with_bare_machine(input, bare_machine)?;
+        validate_embedded_selection(&envelope.prefix.schema_name, envelope.prefix.span, base)?;
+        let mut cursor = envelope.cursor(input)?;
+        let graph = parse_graph(&mut cursor, base, Selection::Embedded(dictionary))?;
+        Ok(Self {
+            envelope,
+            nodes: graph.nodes,
+            terminator: graph.terminator,
+            unresolved_pointer_indices: graph.unresolved_pointer_indices,
+            unresolved_pointers: graph.unresolved_pointers,
+        })
+    }
+
     pub fn parse(input: &[u8], base: &Schema, target: &Schema) -> Result<Self> {
         Self::parse_with_bare_machine(input, base, target, None)
     }
@@ -135,7 +177,7 @@ impl BinaryXtDocument {
             target,
         )?;
         let mut cursor = envelope.cursor(input)?;
-        let graph = parse_graph(&mut cursor, base, target)?;
+        let graph = parse_graph(&mut cursor, base, Selection::Exact(target))?;
         Ok(Self {
             envelope,
             nodes: graph.nodes,
@@ -146,12 +188,29 @@ impl BinaryXtDocument {
     }
 }
 
+/// How the layout of each node type is chosen.
+#[derive(Clone, Copy)]
+enum Selection<'a> {
+    /// The file names this schema and every embedded layout must equal it.
+    Exact(&'a Schema),
+    /// The embedded edits against the base are the layout; the schema only
+    /// supplies the variable-length flag of node types the base lacks.
+    Embedded(&'a Schema),
+}
+
+/// What is known about one node type after its first occurrence.
+struct NodeLayout {
+    name: String,
+    variable: bool,
+    fields: Vec<FieldSpec>,
+}
+
 fn parse_graph<C: DocumentCursor>(
     cursor: &mut C,
     base: &Schema,
-    target: &Schema,
+    selection: Selection<'_>,
 ) -> Result<ParsedGraph> {
-    let mut layouts: BTreeMap<u16, Vec<FieldSpec>> = BTreeMap::new();
+    let mut layouts: BTreeMap<u16, NodeLayout> = BTreeMap::new();
     let mut file_indices = BTreeSet::new();
     let mut nodes = Vec::new();
 
@@ -187,24 +246,27 @@ fn parse_graph<C: DocumentCursor>(
             };
         }
 
-        let target_node = target.node(node_type).ok_or_else(|| {
-            node_error(
-                cursor.span_from(record_start),
-                format!("node type {node_type} is absent from target schema"),
-            )
-        })?;
+        if let Selection::Exact(target) = selection {
+            if target.node(node_type).is_none() {
+                return Err(node_error(
+                    cursor.span_from(record_start),
+                    format!("node type {node_type} is absent from target schema"),
+                ));
+            }
+        }
 
-        let schema_update = if let std::collections::btree_map::Entry::Vacant(entry) =
-            layouts.entry(node_type)
-        {
-            let (layout, update) = read_first_node_schema(cursor, node_type, base, target_node)?;
-            entry.insert(layout);
-            Some(update)
-        } else {
+        let schema_update = if layouts.contains_key(&node_type) {
             None
+        } else {
+            let embedded = read_first_node_schema(cursor, node_type, base)?;
+            let update = embedded.update;
+            let layout = resolve_layout(selection, base, node_type, embedded, cursor)?;
+            layouts.insert(node_type, layout);
+            Some(update)
         };
+        let layout = &layouts[&node_type];
 
-        let variable_length = if target_node.variable {
+        let variable_length = if layout.variable {
             let value = cursor.read_i32()?.ok_or_else(|| {
                 node_error(
                     cursor.span_from(record_start),
@@ -247,10 +309,10 @@ fn parse_graph<C: DocumentCursor>(
             ));
         }
 
-        let fields = read_node_fields(cursor, target_node, variable_length)?;
+        let fields = read_node_fields(cursor, node_type, &layout.fields, variable_length)?;
         nodes.push(NodeRecord {
             node_type,
-            node_name: target_node.name.clone(),
+            node_name: layout.name.clone(),
             file_index,
             variable_length,
             schema_update,
@@ -301,6 +363,26 @@ fn parse_graph<C: DocumentCursor>(
         unresolved_pointer_indices,
         unresolved_pointers,
     })
+}
+
+/// Only the base is checked: the file's own edits define everything else.
+fn validate_embedded_selection(schema_name: &[u8], span: Span, base: &Schema) -> Result<()> {
+    let identity = SchemaIdentity::parse(schema_name).ok_or_else(|| {
+        XtError::new(
+            ErrorKind::InvalidSchema,
+            span,
+            "internal schema name is not SCH_<version>_<schema>_<base>",
+        )
+    })?;
+    let expected_base = format!("SCH_{}", identity.base);
+    if base.key() != expected_base {
+        return Err(XtError::new(
+            ErrorKind::InvalidSchema,
+            span,
+            format!("base schema must be {expected_base}"),
+        ));
+    }
+    Ok(())
 }
 
 fn validate_schema_selection(
@@ -534,14 +616,12 @@ fn read_first_node_schema<C: DocumentCursor>(
     cursor: &mut C,
     node_type: u16,
     base: &Schema,
-    target: &NodeSpec,
-) -> Result<(Vec<FieldSpec>, SchemaUpdateKind)> {
+) -> Result<EmbeddedLayout> {
     let start = cursor.position();
     let flag = cursor.read_u8()?;
-    let target_effective = effective_fields(target);
-    let (embedded, update) = match base.node(node_type) {
+    let (embedded, update, new_name) = match base.node(node_type) {
         Some(base_node) if flag == u8::MAX => {
-            (effective_fields(base_node), SchemaUpdateKind::BaseMatch)
+            (effective_fields(base_node), SchemaUpdateKind::BaseMatch, None)
         }
         Some(base_node) => {
             let mut edits = Vec::new();
@@ -583,6 +663,7 @@ fn read_first_node_schema<C: DocumentCursor>(
                         )
                     })?,
                 SchemaUpdateKind::Edited,
+                None,
             )
         }
         None => {
@@ -593,27 +674,100 @@ fn read_first_node_schema<C: DocumentCursor>(
                     "new node type cannot use base-match flag 255",
                 ));
             }
-            let _name = cursor.read_short_string()?;
+            let name = utf8_string(
+                cursor.read_short_string()?,
+                cursor.span_from(start),
+                "new node name",
+            )?;
             let _description = cursor.read_short_string()?;
             let mut fields = Vec::with_capacity(usize::from(flag));
             for _ in 0..flag {
                 fields.push(read_embedded_field(cursor)?);
             }
-            (fields, SchemaUpdateKind::NewNode)
+            (fields, SchemaUpdateKind::NewNode, Some(name))
         }
     };
 
-    if !same_fields(&embedded, &target_effective) {
-        let mismatch = first_field_mismatch(&embedded, &target_effective);
-        return Err(XtError::new(
-            ErrorKind::InvalidSchema,
-            cursor.span_from(start),
-            format!(
-                "embedded effective layout for node {node_type} does not match target schema: {mismatch}"
-            ),
-        ));
+    Ok(EmbeddedLayout {
+        fields: embedded,
+        update,
+        new_name,
+        start,
+    })
+}
+
+/// A node type's layout as the file itself describes it.
+struct EmbeddedLayout {
+    fields: Vec<FieldSpec>,
+    update: SchemaUpdateKind,
+    /// Present only for node types the base schema lacks.
+    new_name: Option<String>,
+    start: usize,
+}
+
+fn resolve_layout<C: DocumentCursor>(
+    selection: Selection<'_>,
+    base: &Schema,
+    node_type: u16,
+    embedded: EmbeddedLayout,
+    cursor: &C,
+) -> Result<NodeLayout> {
+    let span = cursor.span_from(embedded.start);
+    match selection {
+        Selection::Exact(target) => {
+            let target_node = target.node(node_type).ok_or_else(|| {
+                node_error(span, format!("node type {node_type} is absent from target schema"))
+            })?;
+            let target_effective = effective_fields(target_node);
+            if !same_fields(&embedded.fields, &target_effective) {
+                let mismatch = first_field_mismatch(&embedded.fields, &target_effective);
+                return Err(XtError::new(
+                    ErrorKind::InvalidSchema,
+                    span,
+                    format!(
+                        "embedded effective layout for node {node_type} does not match target schema: {mismatch}"
+                    ),
+                ));
+            }
+            Ok(NodeLayout {
+                name: target_node.name.clone(),
+                variable: target_node.variable,
+                fields: target_node.fields.clone(),
+            })
+        }
+        Selection::Embedded(dictionary) => {
+            let (name, variable) = match (base.node(node_type), embedded.new_name) {
+                (Some(base_node), _) => (base_node.name.clone(), base_node.variable),
+                (None, Some(name)) => {
+                    let known = dictionary
+                        .node(node_type)
+                        .filter(|node| node.name == name)
+                        .ok_or_else(|| {
+                            XtError::new(
+                                ErrorKind::InvalidSchema,
+                                span,
+                                format!(
+                                    "node type {node_type} ({name}) is new relative to the base and unknown to the dictionary schema; its variable-length flag cannot be determined"
+                                ),
+                            )
+                        })?;
+                    (name, known.variable)
+                }
+                (None, None) => {
+                    return Err(XtError::new(
+                        ErrorKind::InvalidSchema,
+                        span,
+                        format!("node type {node_type} has no name"),
+                    ));
+                }
+            };
+            Ok(NodeLayout {
+                name,
+                variable,
+                fields: embedded.fields,
+            })
+        }
     }
-    Ok((embedded, update))
 }
 
 fn read_embedded_field<C: DocumentCursor>(cursor: &mut C) -> Result<FieldSpec> {
@@ -733,11 +887,12 @@ fn first_field_mismatch(left: &[FieldSpec], right: &[FieldSpec]) -> String {
 
 fn read_node_fields<C: DocumentCursor>(
     cursor: &mut C,
-    node: &NodeSpec,
+    node_type: u16,
+    fields: &[FieldSpec],
     variable_length: Option<usize>,
 ) -> Result<Vec<FieldValue>> {
     let mut output = Vec::new();
-    for field in node.fields.iter().filter(|field| field.transmitted) {
+    for field in fields.iter().filter(|field| field.transmitted) {
         let count = match field.elements {
             ElementCount::Scalar => 1,
             ElementCount::Variable => variable_length.ok_or_else(|| {
@@ -745,7 +900,7 @@ fn read_node_fields<C: DocumentCursor>(
                     field.span,
                     format!(
                         "node {} field {} is variable but node has no VLA count",
-                        node.node_type, field.name
+                        node_type, field.name
                     ),
                 )
             })?,
@@ -900,5 +1055,135 @@ T1 X{} {}3 0 2 255 1 42 1 0 ",
             vec![ScalarValue::Integer(Some(42))]
         );
         assert_eq!(document.terminator.index, 0);
+    }
+
+    fn dictionary_with_new_node() -> Schema {
+        let input = "preamble\n\
+**PART1;FORMAT=text;GUISE=schema;KEY=SCH_14000;\n\
+**PART2;\n\
+**PART3;\n\
+**END_OF_HEADER***\n\
+T \n\
+1 \n\
+: SCHEMA FILE test; \n\
+4 3 2 0 \n\
+1 NULLP; Null; 1 0 0 \n\
+2 VALUE; Value; 1 1 0 \n\
+value; d; 1 0 0 \n\
+3 NEWT; New; 1 1 0 \n\
+number; d; 1 0 0 \n\
+**************** end of schema SCH_14000 **************** \n";
+        SchemaFile::parse(input.as_bytes())
+            .unwrap()
+            .to_schema(None, None)
+            .unwrap()
+    }
+
+    fn short_string(bytes: &mut Vec<u8>, text: &str) {
+        bytes.push(text.len() as u8);
+        bytes.extend_from_slice(text.as_bytes());
+    }
+
+    /// Binary pointer indices are stored one greater than their value.
+    fn index(bytes: &mut Vec<u8>, value: i16) {
+        bytes.extend_from_slice(&(value + 1).to_be_bytes());
+    }
+
+    fn field_definition(bytes: &mut Vec<u8>, name: &str) {
+        short_string(bytes, name);
+        bytes.extend_from_slice(&0_i16.to_be_bytes());
+        index(bytes, 0);
+        short_string(bytes, "d");
+    }
+
+    /// A neutral-binary file whose VALUE layout gains an `extra` field and which
+    /// then carries one NEWT node the base schema does not have.
+    fn edited_file() -> Vec<u8> {
+        let name = b"SCH_1400000_14000_13006";
+        let mut body = b"PS\0\0".to_vec();
+        body.extend_from_slice(&1_i16.to_be_bytes());
+        body.push(b'X');
+        body.extend_from_slice(&(name.len() as i32).to_be_bytes());
+        body.extend_from_slice(name);
+        body.extend_from_slice(&4_i16.to_be_bytes());
+        body.extend_from_slice(&0_i32.to_be_bytes());
+
+        body.extend_from_slice(&2_i16.to_be_bytes());
+        body.push(2);
+        body.extend_from_slice(b"CA");
+        field_definition(&mut body, "extra");
+        body.push(b'Z');
+        index(&mut body, 1);
+        body.extend_from_slice(&42_i32.to_be_bytes());
+        body.extend_from_slice(&7_i32.to_be_bytes());
+
+        body.extend_from_slice(&3_i16.to_be_bytes());
+        body.push(1);
+        short_string(&mut body, "NEWT");
+        short_string(&mut body, "New");
+        field_definition(&mut body, "number");
+        index(&mut body, 2);
+        body.extend_from_slice(&9_i32.to_be_bytes());
+
+        body.extend_from_slice(&1_i16.to_be_bytes());
+        body.extend_from_slice(&1_i16.to_be_bytes());
+
+        let mut input = b"preamble\n\
+**PART1;FORMAT=binary;\n\
+**PART2;SCH=SCH_1400000_14000;USFLD_SIZE=0;\n\
+**PART3;\n\
+**END_OF_HEADER***\n"
+            .to_vec();
+        input.extend_from_slice(&body);
+        input
+    }
+
+    #[test]
+    fn embedded_edits_define_the_layout_without_a_target_schema() {
+        let base = schema("SCH_13006");
+        let dictionary = dictionary_with_new_node();
+        let document =
+            BinaryXtDocument::parse_embedded(&edited_file(), &base, &dictionary, None).unwrap();
+        assert_eq!(document.nodes.len(), 2);
+
+        let value = &document.nodes[0];
+        assert_eq!(value.node_name, "VALUE");
+        assert_eq!(value.schema_update, Some(SchemaUpdateKind::Edited));
+        let names: Vec<_> = value.fields.iter().map(|f| f.name.as_str()).collect();
+        assert_eq!(names, ["value", "extra"]);
+        assert_eq!(value.fields[1].values, [ScalarValue::Integer(Some(7))]);
+
+        let added = &document.nodes[1];
+        assert_eq!(added.node_name, "NEWT");
+        assert_eq!(added.schema_update, Some(SchemaUpdateKind::NewNode));
+        assert_eq!(added.fields[0].values, [ScalarValue::Integer(Some(9))]);
+    }
+
+    #[test]
+    fn exact_selection_still_rejects_a_layout_the_target_lacks() {
+        let base = schema("SCH_13006");
+        let target = dictionary_with_new_node();
+        let error = BinaryXtDocument::parse(&edited_file(), &base, &target).unwrap_err();
+        assert_eq!(error.kind, ErrorKind::InvalidSchema);
+    }
+
+    #[test]
+    fn a_new_node_type_the_dictionary_cannot_vouch_for_is_an_error() {
+        let base = schema("SCH_13006");
+        let dictionary = schema("SCH_14000");
+        let error =
+            BinaryXtDocument::parse_embedded(&edited_file(), &base, &dictionary, None).unwrap_err();
+        assert_eq!(error.kind, ErrorKind::InvalidSchema);
+        assert!(error.context.contains("variable-length"), "{}", error.context);
+    }
+
+    #[test]
+    fn embedded_selection_still_requires_the_named_base() {
+        let wrong_base = schema("SCH_12000");
+        let dictionary = dictionary_with_new_node();
+        let error =
+            BinaryXtDocument::parse_embedded(&edited_file(), &wrong_base, &dictionary, None)
+                .unwrap_err();
+        assert_eq!(error.kind, ErrorKind::InvalidSchema);
     }
 }

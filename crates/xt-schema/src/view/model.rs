@@ -121,6 +121,16 @@ impl<'a> Model<'a> {
     }
 }
 
+trait HasIndex {
+    fn index(&self) -> u32;
+}
+
+/// Drop repeats, keeping first occurrences.
+fn distinct<V: HasIndex>(items: Vec<V>) -> Vec<V> {
+    let mut seen = std::collections::HashSet::with_capacity(items.len());
+    items.into_iter().filter(|item| seen.insert(item.index())).collect()
+}
+
 macro_rules! resolver {
     ($name:ident, $View:ident, $variant:ident, $label:literal) => {
         impl<'a> Model<'a> {
@@ -157,6 +167,11 @@ macro_rules! view_type {
                 self.node
             }
             pub fn file_index(&self) -> u32 {
+                self.node.file_index
+            }
+        }
+        impl HasIndex for $View<'_> {
+            fn index(&self) -> u32 {
                 self.node.file_index
             }
         }
@@ -207,16 +222,32 @@ impl<'a> Body<'a> {
         Ok(out)
     }
 
+    /// Every edge: those the body owns (face and sheet boundaries) followed by
+    /// the wire edges its shells own. Each edge appears once.
     pub fn edges(&self) -> Result<Vec<Edge<'a>>> {
         let m = self.model;
         let first = m.edge_at("body.edge", self.node.edge)?;
-        m.chain("edge.next", first, |e| m.edge_at("edge.next", e.node.next))
+        let mut out = m.chain("edge.next", first, |e| m.edge_at("edge.next", e.node.next))?;
+        for region in self.regions()? {
+            for shell in region.shells()? {
+                out.extend(shell.wire_edges()?);
+            }
+        }
+        Ok(distinct(out))
     }
 
+    /// Every vertex: those the body owns followed by the isolated vertices its
+    /// shells own. Each vertex appears once.
     pub fn vertices(&self) -> Result<Vec<Vertex<'a>>> {
         let m = self.model;
         let first = m.vertex_at("body.vertex", self.node.vertex)?;
-        m.chain("vertex.next", first, |v| m.vertex_at("vertex.next", v.node.next))
+        let mut out = m.chain("vertex.next", first, |v| m.vertex_at("vertex.next", v.node.next))?;
+        for region in self.regions()? {
+            for shell in region.shells()? {
+                out.extend(shell.isolated_vertices()?);
+            }
+        }
+        Ok(distinct(out))
     }
 }
 
@@ -238,6 +269,20 @@ impl<'a> Shell<'a> {
         let m = self.model;
         let first = m.face_at("shell.face", self.node.face)?;
         m.chain("face.next", first, |f| m.face_at("face.next", f.node.next))
+    }
+
+    /// Edges that belong to no face: the shell's wire edges.
+    pub fn wire_edges(&self) -> Result<Vec<Edge<'a>>> {
+        let m = self.model;
+        let first = m.edge_at("shell.edge", self.node.edge)?;
+        m.chain("edge.next", first, |e| m.edge_at("edge.next", e.node.next))
+    }
+
+    /// Vertices that belong to no edge or face: an acorn shell's vertex.
+    pub fn isolated_vertices(&self) -> Result<Vec<Vertex<'a>>> {
+        let m = self.model;
+        let first = m.vertex_at("shell.vertex", self.node.vertex)?;
+        m.chain("vertex.next", first, |v| m.vertex_at("vertex.next", v.node.next))
     }
 
     /// Faces whose front shell is this shell.
@@ -363,7 +408,9 @@ impl<'a> Edge<'a> {
         self.model.carrier("edge.curve", self.node.curve)
     }
 
-    /// Every fin of the edge: the edge's first fin and the ring of `other` fins.
+    /// The fins of the edge that belong to a loop. The ring of `other` fins also
+    /// holds loop-less partner fins (the open side of a sheet edge, wire edges),
+    /// which are left out.
     pub fn fins(&self) -> Result<Vec<Fin<'a>>> {
         let m = self.model;
         let first = m.fin_at("edge.halfedge", self.node.halfedge)?;
@@ -382,6 +429,7 @@ impl<'a> Edge<'a> {
             out.push(fin);
             current = fin.other()?;
         }
+        out.retain(|fin| !matches!(fin.node.r#loop, XtPointer::Null));
         Ok(out)
     }
 }

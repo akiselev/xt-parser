@@ -8,17 +8,18 @@
 # A file that crashes the Parasolid process is recorded as an oracle failure
 # at stage "crash" (oracle silent, never a pass).
 set -eu
-list=$1
-run=$2
+mkdir -p "$2"
+list=$(realpath "$1")
+run=$(realpath "$2")
 here=$(cd "$(dirname "$0")" && pwd)
 lock="$here/../../cadabra3/scripts/cargo-locked"
-mkdir -p "$run"
 native="$run/native.ndjson"
 oracle="$run/oracle.ndjson"
 
 "$here/target/release/xt-native-dump" "$list" "$native" --threads "${THREADS:-4}"
 
 : >>"$oracle"
+stalls=0
 while :; do
   python3 -I - "$list" "$oracle" "$run/remaining.list" <<'PY'
 import json, sys
@@ -32,9 +33,15 @@ print(len(rest))
 PY
   [ -s "$run/remaining.list" ] || break
   before=$(wc -l <"$oracle")
-  (cd "$here" && "$lock" run --release --target x86_64-pc-windows-gnu -p xt-pk-dump -- \
+  (cd "$here" && "$lock" run --release --target x86_64-pc-windows-gnu -p xt-pk-dump --bin xt-pk-dump -- \
     "$run/remaining.list" "$oracle") || true
   after=$(wc -l <"$oracle")
+  if [ "$after" -eq "$before" ]; then
+    stalls=$((stalls + 1))
+    [ "$stalls" -lt 3 ] || { echo "run.sh: Parasolid process made no progress three times; stopping" >&2; exit 1; }
+  else
+    stalls=0
+  fi
   if [ "$after" -eq "$before" ] || [ "$(wc -l <"$run/remaining.list")" -gt $((after - before)) ]; then
     # The process died on the first file it had not yet recorded.
     first=$(sed -n "$((after - before + 1))p" "$run/remaining.list")

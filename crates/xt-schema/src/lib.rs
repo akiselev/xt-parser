@@ -34,6 +34,32 @@ pub struct TypedBinaryDocument<N> {
     pub nodes: Vec<N>,
 }
 
+/// Parse text of any Parasolid version whose embedded schema edits apply to the
+/// V13 base, without a schema for that version. Records keep the layout the file
+/// itself describes; new node types are named and sized by the newest known
+/// schema, which must agree on their names. No typed nodes are produced because
+/// the generated types exist only for the known schemas.
+pub fn parse_text_embedded(input: &[u8]) -> Result<XtDocument> {
+    XtDocument::parse_text_embedded(
+        input,
+        &schemas::sch_13006::SCHEMA,
+        &schemas::sch_37102::SCHEMA,
+    )
+}
+
+/// Binary counterpart of [`parse_text_embedded`].
+pub fn parse_binary_embedded(
+    input: &[u8],
+    bare_machine: Option<MachineEncoding>,
+) -> Result<BinaryXtDocument> {
+    BinaryXtDocument::parse_embedded(
+        input,
+        &schemas::sch_13006::SCHEMA,
+        &schemas::sch_37102::SCHEMA,
+        bare_machine,
+    )
+}
+
 /// Parse Onshape/ABCD schema-30100 text using its V13 schema-13006 base.
 pub fn parse_text_30100(input: &[u8]) -> Result<TypedTextDocument<schemas::sch_30100::Node>> {
     let raw = XtDocument::parse_text(

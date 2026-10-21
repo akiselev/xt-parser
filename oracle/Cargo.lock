@@ -210,6 +210,7 @@ name = "xt-pk-dump"
 version = "0.1.0"
 dependencies = [
  "parasolid",
+ "parasolid-sys",
  "serde_json",
  "xt-xcheck-digest",
 ]

@@ -20,9 +20,9 @@ existing downloader was also used to acquire the FeatureScript sidecar for
 model 896:
 
 ```bash
-cargo run --manifest-path /home/dev/projects/abcd/Cargo.toml --bin abcd-downloader -- \
+cargo run --manifest-path /projects/sinbad/abcd-downloader/Cargo.toml --bin abcd-downloader -- \
   download 896 --formats featurescript \
-  --out /home/dev/projects/xt-parser/inputs/abcd
+  --out /projects/sinbad/xt-corpus/abc
 ```
 
 That YAML captures the Onshape feature tree and statuses, so it is useful for

@@ -17,7 +17,7 @@ Parasolid at runtime.
   `/home/dev/old-projects/xt-parser/xt-reference.md` is the primary format
   reference. Its SHA-256 is
   `6d049da8d5ef7735d20db4f9ad004e1ad7f25bb0f78b518e8986a3e434f91157`.
-- `/home/dev/projects/parasolid-re/docs/XT_FORMAT.md`, notes under
+- `/projects/sinbad/parasolid-re/docs/XT_FORMAT.md`, notes under
   `solidworks-notes`, and both quarantined parser implementations are leads
   only. They are not authorities.
 - Proprietary manuals, schemas, binaries, licenses, generated Ghidra projects,
@@ -28,7 +28,7 @@ Parasolid at runtime.
 ## Oracle rules
 
 - The canonical runtime target is Parasolid 37.01.243,
-  `/home/dev/projects/parasolid-re/inputs/pskernel.dll`, SHA-256
+  `/projects/sinbad/parasolid-rs/lib/pskernel.dll`, SHA-256
   `c900fa3f430fe67c2adb15a50f9604d9812ed81a02c5006b66689dac28263073`.
 - Runtime probes enter only through documented public PK APIs under the user's
   authorized Parasolid environment. Do not call internal functions, patch the

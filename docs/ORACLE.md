@@ -1,7 +1,7 @@
 # Parasolid oracle
 
 The oracle is an out-of-process executable in
-`/home/dev/projects/parasolid-rs/crates/parasolid-test/src/bin/xt-oracle.rs`.
+`/projects/sinbad/parasolid-rs/crates/parasolid-test/src/bin/xt-oracle.rs`.
 It stages an arbitrary text XT file, calls documented public PK receive/query
 APIs, and emits versioned JSON.
 
@@ -18,19 +18,19 @@ Build and run under the existing Wine environment:
 
 ```bash
 cargo build \
-  --manifest-path /home/dev/projects/parasolid-rs/Cargo.toml \
+  --manifest-path /projects/sinbad/parasolid-rs/Cargo.toml \
   -p parasolid-test --bin xt-oracle --target x86_64-pc-windows-gnu
 
 fixture_windows=$(winepath -w /absolute/path/to/model.x_t)
-wine /home/dev/projects/parasolid-rs/target/x86_64-pc-windows-gnu/debug/xt-oracle.exe \
+wine /projects/sinbad/parasolid-rs/target/x86_64-pc-windows-gnu/debug/xt-oracle.exe \
   "$fixture_windows" \
   --dll-sha256 c900fa3f430fe67c2adb15a50f9604d9812ed81a02c5006b66689dac28263073 \
-  --parasolid-rs-commit "$(git -C /home/dev/projects/parasolid-rs rev-parse HEAD)" \
+  --parasolid-rs-commit "$(git -C /projects/sinbad/parasolid-rs rev-parse HEAD)" \
   --source-state dirty
 ```
 
 Use `--source-state clean` only after confirming
-`git -C /home/dev/projects/parasolid-rs status --porcelain` is empty. Dirty
+`git -C /projects/sinbad/parasolid-rs status --porcelain` is empty. Dirty
 oracle runs are valid experiments but require the patch or a later commit before
 they are independently reproducible.
 
