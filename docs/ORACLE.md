@@ -102,3 +102,16 @@ Facts the comparison established, `dynamic-observed`:
 and with the exact schema and requires identical records.
 `xt-pk-reencode` receives files and transmits them at chosen schema versions;
 only the current version works without schema files (see STATUS.md).
+
+## Parasolid-written fixtures
+
+`crates/xt-schema/tests/fixtures` vendors Parasolid 37.01 output from the
+parasolid-re lane (see `SOURCE.txt`): `pk-unusual` (39 valid unusual bodies, RE
+`0dacf02c`) and `pk-minimal` (5 bodies in the complete form, RE `9a971ec3`).
+`tests/pk_fixtures.rs` parses each and checks body kind, region kinds, shells,
+faces, loops, fins, edges, vertices, fins per edge, acorn vertices and wireframe
+edges against the kernel's own counts in the fixture JSON; and `oracle/run.sh`
+over the same 44 files compares native against live Parasolid (44 of 44).
+Facts: a halfedge's vertex is the vertex at its end in loop order; the edge ring
+of a laminar or wireframe edge contains loop-less partner fins that the API
+hides; a face may have no surface and a vertex no point.

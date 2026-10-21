@@ -45,14 +45,19 @@ impl RegionKind {
     }
 }
 
-/// The kind of a body. Only the codes seen in files and cross-checked against
-/// Parasolid are named (`dynamic-observed`, 152,096 ABC parts); any other code
+/// The stored kind of a body. Parasolid derives minimum and acorn (a wire whose
+/// first shell is an acorn shell) and empty (general, no shells) from structure.
+/// Only the codes seen in files and cross-checked against Parasolid are named
+/// (`dynamic-observed`: 152,096 ABC parts, 39 unusual bodies); any other code
 /// is an error rather than a guess.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum BodyKind {
     Solid,
     Wire,
     Sheet,
+    /// Non-manifold or mixed: wireframe or acorn parts beside faces, several
+    /// regions, and the empty body (one shell-less void region).
+    General,
 }
 
 impl BodyKind {
@@ -61,6 +66,7 @@ impl BodyKind {
             1 => Ok(Self::Solid),
             2 => Ok(Self::Wire),
             3 => Ok(Self::Sheet),
+            6 => Ok(Self::General),
             other => Err(ViewError::BadEnumeration {
                 field: "body.body_type",
                 value: other,

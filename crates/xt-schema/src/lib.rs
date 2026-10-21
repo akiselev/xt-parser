@@ -34,6 +34,38 @@ pub struct TypedBinaryDocument<N> {
     pub nodes: Vec<N>,
 }
 
+/// A text document of one of the generated schemas.
+#[derive(Debug, Clone)]
+pub enum TextDocument {
+    Sch30100(TypedTextDocument<schemas::sch_30100::Node>),
+    Sch37102(TypedTextDocument<schemas::sch_37102::Node>),
+}
+
+impl TextDocument {
+    pub fn raw(&self) -> &XtDocument {
+        match self {
+            Self::Sch30100(document) => &document.raw,
+            Self::Sch37102(document) => &document.raw,
+        }
+    }
+}
+
+/// Parse text under whichever generated schema the file names, in either the
+/// embedded-edits form or the complete form, with or without a container header.
+pub fn parse_text(input: &[u8]) -> Result<TextDocument> {
+    let envelope = xt_parser::TextEnvelope::parse(input)?;
+    let name = String::from_utf8_lossy(&envelope.prefix.schema_name).into_owned();
+    match name.split('_').nth(2) {
+        Some("30100") => parse_text_30100(input).map(TextDocument::Sch30100),
+        Some("37102") => parse_text_37102(input).map(TextDocument::Sch37102),
+        _ => Err(xt_parser::XtError::new(
+            xt_parser::ErrorKind::InvalidSchema,
+            envelope.prefix.span,
+            format!("no generated schema for {name}"),
+        )),
+    }
+}
+
 /// Parse text of any Parasolid version whose embedded schema edits apply to the
 /// V13 base, without a schema for that version. Records keep the layout the file
 /// itself describes; new node types are named and sized by the newest known

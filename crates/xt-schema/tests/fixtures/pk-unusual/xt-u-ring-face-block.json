@@ -1,0 +1,263 @@
+{
+ "schema": "parasolid-re.fixture/v1",
+ "packet": "R-52",
+ "case": [
+  "body: solid",
+  "loop: ring-edge loop",
+  "loop: type",
+  "edge: ring (no vertices)"
+ ],
+ "stage": "r52_xt_unusual",
+ "pk_function": [
+  "PK_BODY_ask_type",
+  "PK_BODY_boolean_2",
+  "PK_BODY_check",
+  "PK_BODY_create_solid_cyl",
+  "PK_PART_receive",
+  "PK_PART_transmit",
+  "PK_SESSION_set_general_topology"
+ ],
+ "binary_sha256": "c900fa3f430fe67c2adb15a50f9604d9812ed81a02c5006b66689dac28263073",
+ "session": {
+  "behaviour": "latest",
+  "check_arguments": true,
+  "precision": "PK default (not set)",
+  "general_topology": "set only where a step says so"
+ },
+ "inputs": {
+  "probe_case": "ring_face_block",
+  "construction": "subtract of a through cylinder r0.5 from a 2x2x1 block",
+  "source": "artifacts/port/r52-xt-unusual/20261021T043125Z-r52/tools/probe-r52/src/main.rs (fn case)"
+ },
+ "options": {
+  "PK_BODY_check": "o_t v5, max_faults 20, every check on, attribs off; run 1 extra_faults 0 (0x6090), run 2 extra_faults 1 (0x6091) (as R-39)",
+  "PK_PART_transmit": "parasolid-rs fileio::transmit_with_format(Text): PK_PART_transmit_o_t v3, transmit_format text, transmit_version 0 (current, embedded schema), user fields off; all result bodies in one part list",
+  "PK_PART_receive": "parasolid-rs fileio::receive in a fresh session (separate Wine process), receive o_t defaults, format text"
+ },
+ "xt": {
+  "file": "xt-u-ring-face-block.x_t",
+  "sha256": "419f84d135191e042664b7e6d065570dda12737b103d71518f40bff26cf0f590",
+  "bytes": 4061,
+  "header_schema": "SCH_3701243_37102",
+  "transmit_line": "T51 : TRANSMIT FILE created by modeller version 370124323 SCH_3701243_37102_13006",
+  "note": "schema SCH_37102 embedded as differences from base SCH_13006"
+ },
+ "result": {
+  "steps": [
+   {
+    "call": "PK_SESSION_set_general_topology",
+    "rc": "PK_ERROR_no_errors",
+    "readback": 0
+   },
+   {
+    "call": "PK_BODY_create_solid_cyl r0.5 h3 at z=-1",
+    "rc": "PK_ERROR_no_errors"
+   },
+   {
+    "call": "PK_BODY_boolean_2 (parasolid-sys default options)",
+    "rc": "PK_ERROR_no_errors",
+    "result": "PK_boolean_result_success_c",
+    "bodies": [
+     74
+    ],
+    "function": 15902,
+    "allow_disjoint": false
+   }
+  ],
+  "transmit": {
+   "call": "PK_PART_transmit (parasolid-rs fileio::transmit_with_format Text; o_t v3 defaults, transmit_version 0)",
+   "n_parts": 1,
+   "ok": true
+  },
+  "bodies": [
+   {
+    "counts": {
+     "body_type": "PK_BODY_type_solid_c",
+     "regions": 2,
+     "region_kinds": [
+      "void",
+      "solid"
+     ],
+     "shells_per_region": [
+      1,
+      1
+     ],
+     "shell_types": [
+      "PK_SHELL_type_wireframe_free_c",
+      "PK_SHELL_type_wireframe_free_c"
+     ],
+     "face_uses": 14,
+     "wireframe_edge_uses": 0,
+     "acorn_vertices": 0,
+     "faces": 7,
+     "faces_without_surface": 0,
+     "surface_classes": [
+      "PK_CLASS_cyl",
+      "PK_CLASS_plane",
+      "PK_CLASS_plane",
+      "PK_CLASS_plane",
+      "PK_CLASS_plane",
+      "PK_CLASS_plane",
+      "PK_CLASS_plane"
+     ],
+     "loops": 10,
+     "loops_per_face": [
+      2,
+      1,
+      1,
+      1,
+      2,
+      1,
+      2
+     ],
+     "loop_types": [
+      "PK_LOOP_type_inner_c",
+      "PK_LOOP_type_inner_c",
+      "PK_LOOP_type_outer_c",
+      "PK_LOOP_type_outer_c",
+      "PK_LOOP_type_outer_c",
+      "PK_LOOP_type_outer_c",
+      "PK_LOOP_type_outer_c",
+      "PK_LOOP_type_outer_c",
+      "PK_LOOP_type_winding_c",
+      "PK_LOOP_type_winding_c"
+     ],
+     "fins": 28,
+     "edges": 14,
+     "fins_per_edge": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+     ],
+     "ring_edges": 2,
+     "edges_on_one_face_twice": 0,
+     "curve_classes": [
+      "PK_CLASS_circle",
+      "PK_CLASS_circle",
+      "PK_CLASS_line",
+      "PK_CLASS_line",
+      "PK_CLASS_line",
+      "PK_CLASS_line",
+      "PK_CLASS_line",
+      "PK_CLASS_line",
+      "PK_CLASS_line",
+      "PK_CLASS_line",
+      "PK_CLASS_line",
+      "PK_CLASS_line",
+      "PK_CLASS_line",
+      "PK_CLASS_line"
+     ],
+     "vertices": 8
+    },
+    "check_extra0": {
+     "rc": "PK_ERROR_no_errors",
+     "n_faults": 0,
+     "faults": []
+    },
+    "check_extra1": {
+     "rc": "PK_ERROR_no_errors",
+     "n_faults": 0,
+     "faults": []
+    }
+   }
+  ],
+  "receive": {
+   "ok": true,
+   "n_bodies": 1,
+   "counts_equal_to_sent": true,
+   "checks_equal_to_sent": true
+  }
+ },
+ "xt_parser": {
+  "revision": "xt-parser lane/oracle-xcheck 123d09a (git archive; working tree not used)",
+  "lane_cli": {
+   "xt-schema-inspect": "failed: InvalidSchema target schema must be SCH_37102 (CLI hard-wires parse_text_30100)",
+   "xt-native-dump": "failed: InvalidSchema at bytes 352..440: target schema must be SCH_37102"
+  },
+  "library_37102": {
+   "parse": "ok",
+   "nodes": 101,
+   "bodies": [
+    {
+     "body_type": 1,
+     "circuit_fins": 28,
+     "edges": 14,
+     "edges_with_curve": 14,
+     "errors": [],
+     "faces": 7,
+     "fins_per_edge": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+     ],
+     "fins_with_curve": 0,
+     "front_face_uses": 7,
+     "isolated_vertex_loops": 0,
+     "loops": 10,
+     "loops_per_face": [
+      2,
+      1,
+      1,
+      1,
+      2,
+      1,
+      2
+     ],
+     "regions": [
+      {
+       "kind": "Void",
+       "shells": [
+        {
+         "back_faces": 0,
+         "front_faces": 7
+        }
+       ]
+      },
+      {
+       "kind": "Solid",
+       "shells": [
+        {
+         "back_faces": 7,
+         "front_faces": 0
+        }
+       ]
+      }
+     ],
+     "tolerant_edges": 0,
+     "tolerant_vertices": 0,
+     "vertices": 8,
+     "vertices_with_point": 8
+    }
+   ]
+  },
+  "differences_from_pk": []
+ },
+ "notes": "faces with an outer loop and a 1-fin inner ring loop; cylinder side with 2 ring loops",
+ "raw_result": "artifacts/port/r52-xt-unusual/20261021T043125Z-r52/raw/runs/r4/ring_face_block.build.json, ring_face_block.recv.json (git-ignored)",
+ "run_env": {
+  "wine": "one process per step, systemd-run MemoryMax=2G",
+  "repeat": "r1, r2, r4 byte-identical .xmt_txt (tolerant_block changed between r2 and r4 by design; wire_bare new in r4)"
+ }
+}

@@ -112,17 +112,32 @@ impl XtDocument {
         })
     }
 
+    /// Parse text under a named target schema. A file that names
+    /// `SCH_<ver>_<schema>_<base>` carries its schema as edits against `base`
+    /// and each layout must equal `target`; a file that names
+    /// `SCH_<ver>_<schema>` is complete and uses `target` directly. Bare kernel
+    /// streams without a container header are accepted.
     pub fn parse_text(input: &[u8], base: &Schema, target: &Schema) -> Result<Self> {
         let envelope = TextEnvelope::parse(input)?;
-        validate_schema_selection(
-            &envelope.prefix.schema_name,
-            envelope.prefix.max_node_types,
-            envelope.prefix.span,
-            base,
-            target,
-        )?;
+        let selection = if SchemaIdentity::parse(&envelope.prefix.schema_name).is_some() {
+            validate_schema_selection(
+                &envelope.prefix.schema_name,
+                envelope.prefix.max_node_types,
+                envelope.prefix.span,
+                base,
+                target,
+            )?;
+            Selection::Exact(target)
+        } else {
+            validate_complete_selection(
+                &envelope.prefix.schema_name,
+                envelope.prefix.span,
+                target,
+            )?;
+            Selection::Complete(target)
+        };
         let mut cursor = envelope.stream.cursor_at(envelope.node_start)?;
-        let graph = parse_graph(&mut cursor, base, Selection::Exact(target))?;
+        let graph = parse_graph(&mut cursor, base, selection)?;
         Ok(Self {
             envelope,
             nodes: graph.nodes,
@@ -192,6 +207,10 @@ enum Selection<'a> {
     /// The embedded edits against the base are the layout; the schema only
     /// supplies the variable-length flag of node types the base lacks.
     Embedded(&'a Schema),
+    /// The file names this schema without embedded edits (`SCH_<ver>_<schema>`),
+    /// so every layout is the schema's own and nothing precedes a node's
+    /// first occurrence.
+    Complete(&'a Schema),
 }
 
 /// What is known about one node type after its first occurrence.
@@ -254,12 +273,30 @@ fn parse_graph<C: DocumentCursor>(
         let schema_update = match layouts.entry(node_type) {
             std::collections::btree_map::Entry::Occupied(_) => None,
             std::collections::btree_map::Entry::Vacant(entry) => {
-                let embedded = read_first_node_schema(cursor, node_type, base)?;
-                let update = embedded.update;
-                entry.insert(resolve_layout(
-                    selection, base, node_type, embedded, cursor,
-                )?);
-                Some(update)
+                if let Selection::Complete(schema) = selection {
+                    let node = schema.node(node_type).ok_or_else(|| {
+                        node_error(
+                            cursor.span_from(record_start),
+                            format!(
+                                "node type {node_type} is absent from schema {}",
+                                schema.key()
+                            ),
+                        )
+                    })?;
+                    entry.insert(NodeLayout {
+                        name: node.name.clone(),
+                        variable: node.variable,
+                        fields: node.fields.clone(),
+                    });
+                    None
+                } else {
+                    let embedded = read_first_node_schema(cursor, node_type, base)?;
+                    let update = embedded.update;
+                    entry.insert(resolve_layout(
+                        selection, base, node_type, embedded, cursor,
+                    )?);
+                    Some(update)
+                }
             }
         };
         let layout = &layouts[&node_type];
@@ -361,6 +398,33 @@ fn parse_graph<C: DocumentCursor>(
         unresolved_pointer_indices,
         unresolved_pointers,
     })
+}
+
+/// A complete stream names `SCH_<version>_<schema>`; the schema must match.
+fn validate_complete_selection(schema_name: &[u8], span: Span, target: &Schema) -> Result<()> {
+    let text = std::str::from_utf8(schema_name).unwrap_or_default();
+    let parts = text.split('_').collect::<Vec<_>>();
+    let valid = parts.len() == 3
+        && parts[0] == "SCH"
+        && parts[1..]
+            .iter()
+            .all(|part| !part.is_empty() && part.bytes().all(|byte| byte.is_ascii_digit()));
+    if !valid {
+        return Err(XtError::new(
+            ErrorKind::InvalidSchema,
+            span,
+            "internal schema name is neither SCH_<version>_<schema> nor SCH_<version>_<schema>_<base>",
+        ));
+    }
+    let expected = format!("SCH_{}", parts[2]);
+    if target.key() != expected {
+        return Err(XtError::new(
+            ErrorKind::InvalidSchema,
+            span,
+            format!("target schema must be {expected}"),
+        ));
+    }
+    Ok(())
 }
 
 /// Only the base is checked: the file's own edits define everything else.
@@ -738,6 +802,11 @@ fn resolve_layout<C: DocumentCursor>(
                 fields: target_node.fields.clone(),
             })
         }
+        Selection::Complete(_) => Err(XtError::new(
+            ErrorKind::InvalidSchema,
+            span,
+            "a complete-schema stream has no embedded layouts to resolve",
+        )),
         Selection::Embedded(dictionary) => {
             let (name, variable) = match (base.node(node_type), embedded.new_name) {
                 (Some(base_node), _) => (base_node.name.clone(), base_node.variable),
@@ -1192,5 +1261,54 @@ number; d; 1 0 0 \n\
             BinaryXtDocument::parse_embedded(&edited_file(), &wrong_base, &dictionary, None)
                 .unwrap_err();
         assert_eq!(error.kind, ErrorKind::InvalidSchema);
+    }
+
+    #[test]
+    fn complete_stream_uses_the_named_schema_without_header_or_edits() {
+        let base = schema("SCH_13006");
+        let target = schema("SCH_14000");
+        let bare = b"T1 X17 SCH_1400000_140000 2 1 42 1 0 ";
+        let document = XtDocument::parse_text(bare, &base, &target).unwrap();
+        assert!(document.envelope.header.is_none());
+        assert_eq!(document.nodes.len(), 1);
+        assert_eq!(document.nodes[0].node_name, "VALUE");
+        assert_eq!(document.nodes[0].schema_update, None);
+        assert_eq!(
+            document.nodes[0].fields[0].values,
+            [ScalarValue::Integer(Some(42))]
+        );
+
+        let mut with_header = b"preamble\n\
+**PART1;FORMAT=text;\n\
+**PART2;SCH=SCH_1400000_14000;USFLD_SIZE=0;\n\
+**PART3;\n\
+**END_OF_HEADER***\n"
+            .to_vec();
+        with_header.extend_from_slice(bare);
+        let framed = XtDocument::parse_text(&with_header, &base, &target).unwrap();
+        assert!(framed.envelope.header.is_some());
+        assert_eq!(
+            framed.nodes[0].fields[0].values,
+            document.nodes[0].fields[0].values
+        );
+    }
+
+    #[test]
+    fn complete_stream_must_name_the_target_schema() {
+        let base = schema("SCH_13006");
+        let other = schema("SCH_15000");
+        let error = XtDocument::parse_text(b"T1 X17 SCH_1400000_140000 2 1 42 1 0 ", &base, &other)
+            .unwrap_err();
+        assert_eq!(error.kind, ErrorKind::InvalidSchema);
+    }
+
+    #[test]
+    fn complete_stream_rejects_a_node_type_the_schema_lacks() {
+        let base = schema("SCH_13006");
+        let target = schema("SCH_14000");
+        let error =
+            XtDocument::parse_text(b"T1 X17 SCH_1400000_140000 3 1 42 1 0 ", &base, &target)
+                .unwrap_err();
+        assert_eq!(error.kind, ErrorKind::InvalidNode);
     }
 }

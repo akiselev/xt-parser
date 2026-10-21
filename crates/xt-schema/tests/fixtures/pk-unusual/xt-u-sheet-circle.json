@@ -1,0 +1,170 @@
+{
+ "schema": "parasolid-re.fixture/v1",
+ "packet": "R-52",
+ "case": [
+  "body: sheet",
+  "edge: ring (no vertices)",
+  "loop: ring-edge loop",
+  "edge: laminar (one face)"
+ ],
+ "stage": "r52_xt_unusual",
+ "pk_function": [
+  "PK_BODY_ask_type",
+  "PK_BODY_check",
+  "PK_BODY_create_sheet_circle",
+  "PK_PART_receive",
+  "PK_PART_transmit"
+ ],
+ "binary_sha256": "c900fa3f430fe67c2adb15a50f9604d9812ed81a02c5006b66689dac28263073",
+ "session": {
+  "behaviour": "latest",
+  "check_arguments": true,
+  "precision": "PK default (not set)",
+  "general_topology": "set only where a step says so"
+ },
+ "inputs": {
+  "probe_case": "sheet_circle",
+  "construction": "PK_BODY_create_sheet_circle r1",
+  "source": "artifacts/port/r52-xt-unusual/20261021T043125Z-r52/tools/probe-r52/src/main.rs (fn case)"
+ },
+ "options": {
+  "PK_BODY_check": "o_t v5, max_faults 20, every check on, attribs off; run 1 extra_faults 0 (0x6090), run 2 extra_faults 1 (0x6091) (as R-39)",
+  "PK_PART_transmit": "parasolid-rs fileio::transmit_with_format(Text): PK_PART_transmit_o_t v3, transmit_format text, transmit_version 0 (current, embedded schema), user fields off; all result bodies in one part list",
+  "PK_PART_receive": "parasolid-rs fileio::receive in a fresh session (separate Wine process), receive o_t defaults, format text"
+ },
+ "xt": {
+  "file": "xt-u-sheet-circle.x_t",
+  "sha256": "2d29cae003d0b66f1b957d88ca201857d084d7f626f010ab5015454200f3d183",
+  "bytes": 1174,
+  "header_schema": "SCH_3701243_37102",
+  "transmit_line": "T51 : TRANSMIT FILE created by modeller version 370124323 SCH_3701243_37102_13006",
+  "note": "schema SCH_37102 embedded as differences from base SCH_13006"
+ },
+ "result": {
+  "steps": [
+   {
+    "call": "PK_BODY_create_sheet_circle",
+    "rc": "PK_ERROR_no_errors"
+   }
+  ],
+  "transmit": {
+   "call": "PK_PART_transmit (parasolid-rs fileio::transmit_with_format Text; o_t v3 defaults, transmit_version 0)",
+   "n_parts": 1,
+   "ok": true
+  },
+  "bodies": [
+   {
+    "counts": {
+     "body_type": "PK_BODY_type_sheet_c",
+     "regions": 1,
+     "region_kinds": [
+      "void"
+     ],
+     "shells_per_region": [
+      1
+     ],
+     "shell_types": [
+      "PK_SHELL_type_wireframe_free_c"
+     ],
+     "face_uses": 2,
+     "wireframe_edge_uses": 0,
+     "acorn_vertices": 0,
+     "faces": 1,
+     "faces_without_surface": 0,
+     "surface_classes": [
+      "PK_CLASS_plane"
+     ],
+     "loops": 1,
+     "loops_per_face": [
+      1
+     ],
+     "loop_types": [
+      "PK_LOOP_type_outer_c"
+     ],
+     "fins": 1,
+     "edges": 1,
+     "fins_per_edge": [
+      1
+     ],
+     "ring_edges": 1,
+     "edges_on_one_face_twice": 0,
+     "curve_classes": [
+      "PK_CLASS_circle"
+     ],
+     "vertices": 0
+    },
+    "check_extra0": {
+     "rc": "PK_ERROR_no_errors",
+     "n_faults": 0,
+     "faults": []
+    },
+    "check_extra1": {
+     "rc": "PK_ERROR_no_errors",
+     "n_faults": 0,
+     "faults": []
+    }
+   }
+  ],
+  "receive": {
+   "ok": true,
+   "n_bodies": 1,
+   "counts_equal_to_sent": true,
+   "checks_equal_to_sent": true
+  }
+ },
+ "xt_parser": {
+  "revision": "xt-parser lane/oracle-xcheck 123d09a (git archive; working tree not used)",
+  "lane_cli": {
+   "xt-schema-inspect": "failed: InvalidSchema target schema must be SCH_37102 (CLI hard-wires parse_text_30100)",
+   "xt-native-dump": "failed: InvalidSchema at bytes 352..440: target schema must be SCH_37102"
+  },
+  "library_37102": {
+   "parse": "ok",
+   "nodes": 10,
+   "bodies": [
+    {
+     "body_type": 3,
+     "circuit_fins": 1,
+     "edges": 1,
+     "edges_with_curve": 1,
+     "errors": [],
+     "faces": 1,
+     "fins_per_edge": [
+      2
+     ],
+     "fins_with_curve": 0,
+     "front_face_uses": 1,
+     "isolated_vertex_loops": 0,
+     "loops": 1,
+     "loops_per_face": [
+      1
+     ],
+     "regions": [
+      {
+       "kind": "Void",
+       "shells": [
+        {
+         "back_faces": 1,
+         "front_faces": 1
+        }
+       ]
+      }
+     ],
+     "tolerant_edges": 0,
+     "tolerant_vertices": 0,
+     "vertices": 0,
+     "vertices_with_point": 0
+    }
+   ]
+  },
+  "differences_from_pk": [
+   "body 0: fins per edge: view [2] (other ring incl. dummy halfedges), PK_EDGE_ask_fins [1]"
+  ]
+ },
+ "notes": "face bounded by one vertexless edge",
+ "raw_result": "artifacts/port/r52-xt-unusual/20261021T043125Z-r52/raw/runs/r4/sheet_circle.build.json, sheet_circle.recv.json (git-ignored)",
+ "run_env": {
+  "wine": "one process per step, systemd-run MemoryMax=2G",
+  "repeat": "r1, r2, r4 byte-identical .xmt_txt (tolerant_block changed between r2 and r4 by design; wire_bare new in r4)"
+ }
+}

@@ -211,7 +211,11 @@ fn summarize(document: &XtDocument) -> Outcome {
             .copied()
             .collect(),
         unresolved_pointers: document.unresolved_pointers.clone(),
-        header_diagnostic_count: document.envelope.header.diagnostics.len(),
+        header_diagnostic_count: document
+            .envelope
+            .header
+            .as_ref()
+            .map_or(0, |header| header.diagnostics.len()),
         logical_body_bytes: document.envelope.stream.logical_bytes().len(),
         terminator_index: document.terminator.index,
     }

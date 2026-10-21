@@ -1,0 +1,174 @@
+{
+ "schema": "parasolid-re.fixture/v1",
+ "packet": "R-52",
+ "case": [
+  "body: wire",
+  "edge: no curve"
+ ],
+ "stage": "r52_xt_unusual",
+ "pk_function": [
+  "PK_BODY_ask_type",
+  "PK_BODY_check",
+  "PK_BODY_create_topology_2",
+  "PK_PART_receive",
+  "PK_PART_transmit",
+  "PK_VERTEX_attach_points"
+ ],
+ "binary_sha256": "c900fa3f430fe67c2adb15a50f9604d9812ed81a02c5006b66689dac28263073",
+ "session": {
+  "behaviour": "latest",
+  "check_arguments": true,
+  "precision": "PK default (not set)",
+  "general_topology": "set only where a step says so"
+ },
+ "inputs": {
+  "probe_case": "wire_nocurve",
+  "construction": "wire_open without PK_EDGE_attach_curves_2",
+  "source": "artifacts/port/r52-xt-unusual/20261021T043125Z-r52/tools/probe-r52/src/main.rs (fn case)"
+ },
+ "options": {
+  "PK_BODY_check": "o_t v5, max_faults 20, every check on, attribs off; run 1 extra_faults 0 (0x6090), run 2 extra_faults 1 (0x6091) (as R-39)",
+  "PK_PART_transmit": "parasolid-rs fileio::transmit_with_format(Text): PK_PART_transmit_o_t v3, transmit_format text, transmit_version 0 (current, embedded schema), user fields off; all result bodies in one part list",
+  "PK_PART_receive": "parasolid-rs fileio::receive in a fresh session (separate Wine process), receive o_t defaults, format text"
+ },
+ "xt": {
+  "file": "xt-u-wire-nocurve.x_t",
+  "sha256": "535682d79be3b394c9869208ce0ea1e0de7e600e627e8b3482597c3b8af5c845",
+  "bytes": 1260,
+  "header_schema": "SCH_3701243_37102",
+  "transmit_line": "T51 : TRANSMIT FILE created by modeller version 370124323 SCH_3701243_37102_13006",
+  "note": "schema SCH_37102 embedded as differences from base SCH_13006"
+ },
+ "result": {
+  "steps": [
+   {
+    "call": "PK_BODY_create_topology_2",
+    "rc": "PK_ERROR_no_errors",
+    "create_faults": [
+     {
+      "indices": [],
+      "state": "PK_BODY_state_ok_c"
+     }
+    ]
+   },
+   {
+    "call": "PK_VERTEX_attach_points",
+    "rc": "PK_ERROR_no_errors"
+   }
+  ],
+  "transmit": {
+   "call": "PK_PART_transmit (parasolid-rs fileio::transmit_with_format Text; o_t v3 defaults, transmit_version 0)",
+   "n_parts": 1,
+   "ok": true
+  },
+  "bodies": [
+   {
+    "counts": {
+     "body_type": "PK_BODY_type_wire_c",
+     "regions": 1,
+     "region_kinds": [
+      "void"
+     ],
+     "shells_per_region": [
+      1
+     ],
+     "shell_types": [
+      "PK_SHELL_type_wireframe_c"
+     ],
+     "face_uses": 0,
+     "wireframe_edge_uses": 2,
+     "acorn_vertices": 0,
+     "faces": 0,
+     "faces_without_surface": 0,
+     "surface_classes": [],
+     "loops": 0,
+     "loops_per_face": [],
+     "loop_types": [],
+     "fins": 0,
+     "edges": 2,
+     "fins_per_edge": [
+      0,
+      0
+     ],
+     "ring_edges": 0,
+     "edges_on_one_face_twice": 0,
+     "curve_classes": [],
+     "vertices": 3
+    },
+    "check_extra0": {
+     "rc": "PK_ERROR_no_errors",
+     "n_faults": 2,
+     "faults": [
+      "PK_TOPOL_state_no_geom_c",
+      "PK_TOPOL_state_no_geom_c"
+     ]
+    },
+    "check_extra1": {
+     "rc": "PK_ERROR_no_errors",
+     "n_faults": 2,
+     "faults": [
+      "PK_TOPOL_state_no_geom_c",
+      "PK_TOPOL_state_no_geom_c"
+     ]
+    }
+   }
+  ],
+  "receive": {
+   "ok": true,
+   "n_bodies": 1,
+   "counts_equal_to_sent": true,
+   "checks_equal_to_sent": true
+  }
+ },
+ "xt_parser": {
+  "revision": "xt-parser lane/oracle-xcheck 123d09a (git archive; working tree not used)",
+  "lane_cli": {
+   "xt-schema-inspect": "failed: InvalidSchema target schema must be SCH_37102 (CLI hard-wires parse_text_30100)",
+   "xt-native-dump": "failed: InvalidSchema at bytes 352..440: target schema must be SCH_37102"
+  },
+  "library_37102": {
+   "parse": "ok",
+   "nodes": 15,
+   "bodies": [
+    {
+     "body_type": 2,
+     "circuit_fins": 0,
+     "edges": 0,
+     "edges_with_curve": 0,
+     "errors": [],
+     "faces": 0,
+     "fins_per_edge": [],
+     "fins_with_curve": 0,
+     "front_face_uses": 0,
+     "isolated_vertex_loops": 0,
+     "loops": 0,
+     "loops_per_face": [],
+     "regions": [
+      {
+       "kind": "Void",
+       "shells": [
+        {
+         "back_faces": 0,
+         "front_faces": 0
+        }
+       ]
+      }
+     ],
+     "tolerant_edges": 0,
+     "tolerant_vertices": 0,
+     "vertices": 3,
+     "vertices_with_point": 3
+    }
+   ]
+  },
+  "differences_from_pk": [
+   "body 0: edges: view 0 (body.edge chain), PK 2 (PK_BODY_ask_edges; 2 wireframe)"
+  ]
+ },
+ "notes": "missing geometry: edges without curves (check fault, still transmitted)",
+ "raw_result": "artifacts/port/r52-xt-unusual/20261021T043125Z-r52/raw/runs/r4/wire_nocurve.build.json, wire_nocurve.recv.json (git-ignored)",
+ "run_env": {
+  "wine": "one process per step, systemd-run MemoryMax=2G",
+  "repeat": "r1, r2, r4 byte-identical .xmt_txt (tolerant_block changed between r2 and r4 by design; wire_bare new in r4)"
+ }
+}

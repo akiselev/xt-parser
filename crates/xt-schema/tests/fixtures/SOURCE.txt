@@ -1,0 +1,5 @@
+Parasolid 37.01.243 output (default text transmit and the non-embedded form), generated
+by the parasolid-re lane; synthetic bodies, no customer data.
+
+pk-unusual/  parasolid-re 0dacf02c  port/xt-unusual/fixtures  (R-52, 39 bodies; .x_t, expected counts in .json)
+pk-minimal/  parasolid-re 9a971ec3  port/xt-minimal/fixtures  (R-49, 5 bodies, non-embedded SCH_3701243_37102)

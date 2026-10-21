@@ -205,7 +205,7 @@ fn accumulate(report: &mut CorpusReport, document: &XtDocument) {
             ))
             .or_insert(0) += 1;
     }
-    for diagnostic in &document.envelope.header.diagnostics {
+    for diagnostic in document.envelope.header.iter().flat_map(|h| &h.diagnostics) {
         *report
             .header_diagnostics
             .entry(format!("{:?}", diagnostic.kind))

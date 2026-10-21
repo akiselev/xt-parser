@@ -28,6 +28,54 @@ Date: 2026-10-21
   LF-normalized SHA-256:
   `c2d06b56144524347834699b33d9dbfe7e6a1b8d3cd125b1a4d68593464f8e5f`.
 
+## R-52/R-49 fixtures lane (2026-10-21, same branch)
+
+- `dynamic-observed`: 39 of 39 R-52 unusual bodies (RE `0dacf02c`) and 5 of 5 R-49
+  minimal bodies (RE `9a971ec3`) parse and match the kernel's counts
+  (`cargo test -p xt-schema --test pk_fixtures`, 4 tests), and 44 of 44 pass the
+  native-versus-live-Parasolid comparison (`oracle/run.sh`, parasolid-rs `f889c61`).
+  Fixtures are vendored in `crates/xt-schema/tests/fixtures`.
+- CLIs now dispatch on the file's schema: `xt-schema-inspect`, `xt-native-dump`,
+  `xt-show`, `xt-embedded-check` (`xt_schema::parse_text`).
+- Non-embedded ("complete") text form and headerless bare streams parse
+  (`XtDocument::parse_text` chooses by the schema name; `TextEnvelope::header` is an
+  `Option`). Unit tests: `complete_stream_*`.
+- View corrections from the fixtures: `Fin::vertex` renamed `end_vertex` (it is the
+  vertex at the end in loop order; R-39 section 2); an acorn shell has one vertex
+  (`Shell::acorn_vertex`, a vertex chain would run into the next shell);
+  `Face::surface` and `Vertex::position` are `Option` (missing geometry is a valid
+  receive state); `BodyKind::General` added. Wireframe edges (`Shell::wire_edges`)
+  and loop-less partner fins were already handled before RE read 123d09a.
+- Comparison: stored kinds wire/general with no edges/shells equal Parasolid's
+  derived acorn, minimum and empty; `bounds` unavailable from Parasolid for an empty
+  body or a curveless wire is recorded, not a failure.
+
+### Design for a cadabra-to-XT writer (not built in this lane)
+
+Target: the complete form `SCH_3701243_37102` (transmit_version 371), delivered with
+`parasolid::fileio::receive_from_str`. The reader side is now ready for round trips.
+Proposed `xt-schema` API (per generated schema, so 37102 only at first):
+
+1. `write::TextWriter::new(schema_version = 3701243, res_size, res_linear)` and
+   `fn write(&self, nodes: &[sch_37102::Node]) -> Result<String, WriteError>`; the
+   caller builds typed nodes with explicit indices (BODY first) and the writer only
+   serialises: `Node -> NodeRecord` (the inverse of `TryFrom<&NodeRecord>`, generated
+   next to it by `xt-schema-gen`), then a `TextSink` that is the inverse of
+   `TextCursor` (numbers end in one space, `?` for unset, c/l fields without a space,
+   strings length-prefixed, shortest-round-trip reals).
+2. `WriteError`: pointer to a missing index, duplicate index, non-unit direction
+   vector, vertex tolerance below an incident edge tolerance, tolerant edge with a
+   curve or without fin curves, `res_size`/`res_linear` unequal to the session.
+   Each is a typed error found before emission (R-49 section 4 to 6 rules).
+3. Line breaking at no fixed width but never before a space (no physical line may end
+   in a space); simplest is one logical line, optionally wrapped at 200+ columns on a
+   non-space character.
+4. A `view`-shaped builder (`Builder` that allocates indices and owner/next/previous
+   chains for BODY, REGION x2, SHELL, FACE, LOOP, HALFEDGE, EDGE, VERTEX, geometry)
+   belongs in the cadabra-side crate; xt-parser stays a vocabulary and serialiser.
+5. Round-trip test: parse each r49 fixture, write, parse again, compare node by node
+   (indices may be renumbered), and receive the written text in Parasolid.
+
 ## Oracle cross-check lane (branch `lane/oracle-xcheck`, 2026-10-21)
 
 Machine paths that replace the unavailable `/home/dev/...` ones: parasolid-rs

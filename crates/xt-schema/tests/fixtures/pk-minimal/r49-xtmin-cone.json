@@ -1,0 +1,123 @@
+{
+ "binary_sha256": "c900fa3f430fe67c2adb15a50f9604d9812ed81a02c5006b66689dac28263073",
+ "bodies": [
+  {
+   "body_type": "Solid",
+   "check": {
+    "call": "PK_BODY_check (NULL options)",
+    "n_faults": 0,
+    "states": []
+   },
+   "edges": 2,
+   "faces": 3,
+   "mass_props": {
+    "accuracy": 0.999,
+    "amount": {
+     "dec": "1.37150760583118313e3",
+     "hex": "0x40956e07c9d2b0c3"
+    },
+    "cog": [
+     {
+      "dec": "-3.34830130959546134e-16",
+      "hex": "0xbcb8208696807f55"
+     },
+     {
+      "dec": "2.15831140966157156e-32",
+      "hex": "0x395c0438499edc42"
+     },
+     {
+      "dec": "5.77312980089695138e0",
+      "hex": "0x401717af56a9a95e"
+     }
+    ],
+    "inertia": [
+     {
+      "dec": "2.68229035468668881e4",
+      "hex": "0x40da31b9d3b63cec"
+     },
+     {
+      "dec": "1.63049272292108778e-28",
+      "hex": "0x3a29d61072d8973a"
+     },
+     {
+      "dec": "-1.45945662049461215e-12",
+      "hex": "0xbd79acceec3d3722"
+     },
+     {
+      "dec": "1.63049272292108778e-28",
+      "hex": "0x3a29d61072d8973a"
+     },
+     {
+      "dec": "2.68229035468668881e4",
+      "hex": "0x40da31b9d3b63cec"
+     },
+     {
+      "dec": "-1.96320470984777086e-29",
+      "hex": "0xb9f8e2f6a9e2c5fd"
+     },
+     {
+      "dec": "-1.45945662049461215e-12",
+      "hex": "0xbd79acceec3d3722"
+     },
+     {
+      "dec": "-1.96320470984777086e-29",
+      "hex": "0xb9f8e2f6a9e2c5fd"
+     },
+     {
+      "dec": "3.20929113000244033e4",
+      "hex": "0x40df573a52bd566a"
+     }
+    ],
+    "mass": {
+     "dec": "1.37150760583118313e3",
+     "hex": "0x40956e07c9d2b0c3"
+    },
+    "periphery": {
+     "dec": "7.14892964351414093e2",
+     "hex": "0x40865724ca7e6e8a"
+    }
+   },
+   "vertices": 0
+  }
+ ],
+ "case_id": "r49-xtmin-cone",
+ "evidence": {
+  "notes": "artifacts/port/r49-xt-receive/20261021T043038Z-r49/notes.md",
+  "probe": "artifacts/port/r49-xt-receive/20261021T043038Z-r49/tools/probe-r49 (stage fixture)",
+  "raw": "artifacts/port/r49-xt-receive/20261021T043038Z-r49/raw/fix/cone.out"
+ },
+ "exercises": "CONE + 2 PLANE faces, 2 CIRCLE ring edges, no vertices; exact",
+ "grade": "dynamic-observed",
+ "inputs": {
+  "construction": "Body::create_solid_cone(5, 10, 0.3): base radius 5 at z=0, height 10, semi-angle 0.3 rad (widening)",
+  "session": "parasolid-rs Session defaults (precision 1e-8, size box 1e3), check_arguments on",
+  "transmit": "PK_PART_transmit_b, PK_PART_transmit_o_t v3, transmit_format text (18220), transmit_version 371 (non-embedded SCH_3701243_37102)"
+ },
+ "packet": "xt-minimal (R-49 b)",
+ "receive": {
+  "call": "PK_PART_receive_b (parasolid-rs fileio::receive_from_bytes, Text), PK_PART_receive_o_t v1",
+  "n_parts": 1,
+  "rc": 0
+ },
+ "schema": "parasolid-re.xt-minimal-fixture/v1",
+ "xt": {
+  "bytes": 873,
+  "container_header": false,
+  "file": "r49-xtmin-cone.x_t",
+  "node_inventory": {
+   "BODY": 1,
+   "CIRCLE": 2,
+   "CONE": 1,
+   "EDGE": 2,
+   "FACE": 3,
+   "HALFEDGE": 4,
+   "LOOP": 4,
+   "PLANE": 2,
+   "REGION": 2,
+   "SHELL": 2
+  },
+  "nodes": 23,
+  "schema_name": "SCH_3701243_37102",
+  "sha256": "08f58c8e830bc09e1104523274f0dc970500b5482107eb187c8daee2cd3cee3d"
+ }
+}

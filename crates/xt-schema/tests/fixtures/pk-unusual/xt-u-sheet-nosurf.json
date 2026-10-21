@@ -1,0 +1,198 @@
+{
+ "schema": "parasolid-re.fixture/v1",
+ "packet": "R-52",
+ "case": [
+  "body: sheet",
+  "face: no surface ('rubber' face, missing geometry)"
+ ],
+ "stage": "r52_xt_unusual",
+ "pk_function": [
+  "PK_BODY_ask_type",
+  "PK_BODY_check",
+  "PK_BODY_create_topology_2",
+  "PK_EDGE_attach_curves_2",
+  "PK_PART_receive",
+  "PK_PART_transmit",
+  "PK_VERTEX_attach_points"
+ ],
+ "binary_sha256": "c900fa3f430fe67c2adb15a50f9604d9812ed81a02c5006b66689dac28263073",
+ "session": {
+  "behaviour": "latest",
+  "check_arguments": true,
+  "precision": "PK default (not set)",
+  "general_topology": "set only where a step says so"
+ },
+ "inputs": {
+  "probe_case": "sheet_nosurf",
+  "construction": "create_topology_2 square sheet, no PK_FACE_attach_surfs",
+  "source": "artifacts/port/r52-xt-unusual/20261021T043125Z-r52/tools/probe-r52/src/main.rs (fn case)"
+ },
+ "options": {
+  "PK_BODY_check": "o_t v5, max_faults 20, every check on, attribs off; run 1 extra_faults 0 (0x6090), run 2 extra_faults 1 (0x6091) (as R-39)",
+  "PK_PART_transmit": "parasolid-rs fileio::transmit_with_format(Text): PK_PART_transmit_o_t v3, transmit_format text, transmit_version 0 (current, embedded schema), user fields off; all result bodies in one part list",
+  "PK_PART_receive": "parasolid-rs fileio::receive in a fresh session (separate Wine process), receive o_t defaults, format text"
+ },
+ "xt": {
+  "file": "xt-u-sheet-nosurf.x_t",
+  "sha256": "ba4a2caf8c88f78bcb47a52db75da1ec2cfef1cd7e54e5edec1e40d93fed5bb1",
+  "bytes": 1714,
+  "header_schema": "SCH_3701243_37102",
+  "transmit_line": "T51 : TRANSMIT FILE created by modeller version 370124323 SCH_3701243_37102_13006",
+  "note": "schema SCH_37102 embedded as differences from base SCH_13006"
+ },
+ "result": {
+  "steps": [
+   {
+    "call": "PK_BODY_create_topology_2",
+    "rc": "PK_ERROR_no_errors",
+    "create_faults": [
+     {
+      "indices": [],
+      "state": "PK_BODY_state_ok_c"
+     }
+    ]
+   },
+   {
+    "call": "PK_VERTEX_attach_points",
+    "rc": "PK_ERROR_no_errors"
+   },
+   {
+    "call": "PK_EDGE_attach_curves_2",
+    "rc": "PK_ERROR_no_errors"
+   }
+  ],
+  "transmit": {
+   "call": "PK_PART_transmit (parasolid-rs fileio::transmit_with_format Text; o_t v3 defaults, transmit_version 0)",
+   "n_parts": 1,
+   "ok": true
+  },
+  "bodies": [
+   {
+    "counts": {
+     "body_type": "PK_BODY_type_sheet_c",
+     "regions": 1,
+     "region_kinds": [
+      "void"
+     ],
+     "shells_per_region": [
+      1
+     ],
+     "shell_types": [
+      "PK_SHELL_type_wireframe_free_c"
+     ],
+     "face_uses": 2,
+     "wireframe_edge_uses": 0,
+     "acorn_vertices": 0,
+     "faces": 1,
+     "faces_without_surface": 1,
+     "surface_classes": [],
+     "loops": 1,
+     "loops_per_face": [
+      1
+     ],
+     "loop_types": [
+      "PK_LOOP_type_error_c"
+     ],
+     "fins": 4,
+     "edges": 4,
+     "fins_per_edge": [
+      1,
+      1,
+      1,
+      1
+     ],
+     "ring_edges": 0,
+     "edges_on_one_face_twice": 0,
+     "curve_classes": [
+      "PK_CLASS_line",
+      "PK_CLASS_line",
+      "PK_CLASS_line",
+      "PK_CLASS_line"
+     ],
+     "vertices": 4
+    },
+    "check_extra0": {
+     "rc": "PK_ERROR_no_errors",
+     "n_faults": 1,
+     "faults": [
+      "PK_TOPOL_state_no_geom_c"
+     ]
+    },
+    "check_extra1": {
+     "rc": "PK_ERROR_no_errors",
+     "n_faults": 1,
+     "faults": [
+      "PK_TOPOL_state_no_geom_c"
+     ]
+    }
+   }
+  ],
+  "receive": {
+   "ok": true,
+   "n_bodies": 1,
+   "counts_equal_to_sent": true,
+   "checks_equal_to_sent": true
+  }
+ },
+ "xt_parser": {
+  "revision": "xt-parser lane/oracle-xcheck 123d09a (git archive; working tree not used)",
+  "lane_cli": {
+   "xt-schema-inspect": "failed: InvalidSchema target schema must be SCH_37102 (CLI hard-wires parse_text_30100)",
+   "xt-native-dump": "failed: InvalidSchema at bytes 352..440: target schema must be SCH_37102"
+  },
+  "library_37102": {
+   "parse": "ok",
+   "nodes": 29,
+   "bodies": [
+    {
+     "body_type": 3,
+     "circuit_fins": 4,
+     "edges": 4,
+     "edges_with_curve": 4,
+     "errors": [
+      "face.surface: face.surface: required pointer is null"
+     ],
+     "faces": 1,
+     "fins_per_edge": [
+      2,
+      2,
+      2,
+      2
+     ],
+     "fins_with_curve": 0,
+     "front_face_uses": 1,
+     "isolated_vertex_loops": 0,
+     "loops": 1,
+     "loops_per_face": [
+      1
+     ],
+     "regions": [
+      {
+       "kind": "Void",
+       "shells": [
+        {
+         "back_faces": 1,
+         "front_faces": 1
+        }
+       ]
+      }
+     ],
+     "tolerant_edges": 0,
+     "tolerant_vertices": 0,
+     "vertices": 4,
+     "vertices_with_point": 4
+    }
+   ]
+  },
+  "differences_from_pk": [
+   "body 0: fins per edge: view [2, 2, 2, 2] (other ring incl. dummy halfedges), PK_EDGE_ask_fins [1, 1, 1, 1]",
+   "body 0: view error face.surface: face.surface: required pointer is null"
+  ]
+ },
+ "notes": "face without a surface (check fault, still transmitted)",
+ "raw_result": "artifacts/port/r52-xt-unusual/20261021T043125Z-r52/raw/runs/r4/sheet_nosurf.build.json, sheet_nosurf.recv.json (git-ignored)",
+ "run_env": {
+  "wine": "one process per step, systemd-run MemoryMax=2G",
+  "repeat": "r1, r2, r4 byte-identical .xmt_txt (tolerant_block changed between r2 and r4 by design; wire_bare new in r4)"
+ }
+}

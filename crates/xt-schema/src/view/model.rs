@@ -236,7 +236,7 @@ impl<'a> Body<'a> {
         Ok(distinct(out))
     }
 
-    /// Every vertex: those the body owns followed by the isolated vertices its
+    /// Every vertex: those the body owns followed by the acorn vertices its
     /// shells own. Each vertex appears once.
     pub fn vertices(&self) -> Result<Vec<Vertex<'a>>> {
         let m = self.model;
@@ -244,7 +244,7 @@ impl<'a> Body<'a> {
         let mut out = m.chain("vertex.next", first, |v| m.vertex_at("vertex.next", v.node.next))?;
         for region in self.regions()? {
             for shell in region.shells()? {
-                out.extend(shell.isolated_vertices()?);
+                out.extend(shell.acorn_vertex()?);
             }
         }
         Ok(distinct(out))
@@ -278,11 +278,9 @@ impl<'a> Shell<'a> {
         m.chain("edge.next", first, |e| m.edge_at("edge.next", e.node.next))
     }
 
-    /// Vertices that belong to no edge or face: an acorn shell's vertex.
-    pub fn isolated_vertices(&self) -> Result<Vec<Vertex<'a>>> {
-        let m = self.model;
-        let first = m.vertex_at("shell.vertex", self.node.vertex)?;
-        m.chain("vertex.next", first, |v| m.vertex_at("vertex.next", v.node.next))
+    /// The vertex of an acorn shell (a point belonging to no edge or face).
+    pub fn acorn_vertex(&self) -> Result<Option<Vertex<'a>>> {
+        self.model.vertex_at("shell.vertex", self.node.vertex)
     }
 
     /// Faces whose front shell is this shell.
@@ -319,17 +317,21 @@ impl<'a> Face<'a> {
         m.chain("loop.next", first, |l| m.loop_at("loop.next", l.node.next))
     }
 
-    /// True when the face normal agrees with the surface normal.
-    pub fn agrees_with_surface(&self) -> Result<bool> {
-        Ok((self.sense()? == Sense::Forward) == (self.surface()?.sense() == Sense::Forward))
+    /// True when the face normal agrees with the surface normal; `None` without a surface.
+    pub fn agrees_with_surface(&self) -> Result<Option<bool>> {
+        let face_sense = self.sense()?;
+        Ok(self.surface()?.map(|surface| {
+            (face_sense == Sense::Forward) == (surface.sense() == Sense::Forward)
+        }))
     }
 
-    pub fn surface(&self) -> Result<Surface<'a>> {
-        let node = Model::require(
-            "face.surface",
-            self.model.lookup("face.surface", self.node.surface)?,
-        )?;
-        classify_surface("face.surface", node)
+    /// `None` for a face with no surface, a state Parasolid accepts on receive and
+    /// reports as missing geometry when checked.
+    pub fn surface(&self) -> Result<Option<Surface<'a>>> {
+        match self.model.lookup("face.surface", self.node.surface)? {
+            None => Ok(None),
+            Some(node) => classify_surface("face.surface", node).map(Some),
+        }
     }
 }
 
@@ -350,7 +352,7 @@ impl<'a> Loop<'a> {
             return Ok(LoopBoundary::Circuit(Vec::new()));
         };
         if matches!(start.node.edge, XtPointer::Null) {
-            let vertex = Model::require("halfedge.vertex", start.vertex()?)?;
+            let vertex = Model::require("halfedge.vertex", start.end_vertex()?)?;
             return Ok(LoopBoundary::IsolatedVertex(vertex));
         }
         let mut out = vec![start];
@@ -377,8 +379,8 @@ impl<'a> Fin<'a> {
         Model::require("halfedge.edge", self.model.edge_at("halfedge.edge", self.node.edge)?)
     }
 
-    /// Start vertex of the fin, absent on a ring edge's fin.
-    pub fn vertex(&self) -> Result<Option<Vertex<'a>>> {
+    /// The vertex at the end of the fin in loop order, absent on a ring edge's fin.
+    pub fn end_vertex(&self) -> Result<Option<Vertex<'a>>> {
         self.model.vertex_at("halfedge.vertex", self.node.vertex)
     }
 
@@ -440,13 +442,14 @@ impl<'a> Vertex<'a> {
         self.node.tolerance.0
     }
 
-    pub fn position(&self) -> Result<Vec3> {
-        let node = Model::require(
-            "vertex.point",
-            self.model.lookup("vertex.point", self.node.point)?,
-        )?;
+    /// `None` for a vertex with no point (accepted on receive, reported as missing
+    /// geometry when checked).
+    pub fn position(&self) -> Result<Option<Vec3>> {
+        let Some(node) = self.model.lookup("vertex.point", self.node.point)? else {
+            return Ok(None);
+        };
         match node {
-            Node::Point(point) => required_vec("point.pvec", point.pvec),
+            Node::Point(point) => required_vec("point.pvec", point.pvec).map(Some),
             other => Err(ViewError::WrongNode {
                 field: "vertex.point",
                 expected: "POINT",

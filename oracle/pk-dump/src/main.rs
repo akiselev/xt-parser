@@ -141,10 +141,14 @@ fn describe_body(body: &Body, exact: f64) -> Described<BodyDigest> {
         for loop_ in &face_loops {
             fins += q("fins", loop_.fins())?.len();
         }
-        let surf = q("surf", face.surf())?;
+        let surface = if q("surf", face.surf_tag())? == 0 {
+            None
+        } else {
+            Some(surface_geometry(&q("surf", face.surf())?)?)
+        };
         face_digests.push(FaceDigest {
             id: q("face id", face.entity().identifier())?,
-            surface: surface_geometry(&surf)?,
+            surface,
             same_sense: Some(q("orientation", face.orientation())?),
             loops: face_loops.len(),
         });
@@ -169,15 +173,29 @@ fn describe_body(body: &Body, exact: f64) -> Described<BodyDigest> {
     let vertices = q("vertices", body.vertices())?;
     let mut vertex_digests = Vec::new();
     for vertex in &vertices {
-        let p = q("vertex point", vertex.point())?;
+        let mut point_tag: parasolid_sys::PK_POINT_t = 0;
+        // SAFETY: the vertex tag is live and `point_tag` is a valid out slot.
+        let rc = unsafe { parasolid_sys::PK_VERTEX_ask_point(vertex.tag(), &mut point_tag) };
+        if rc != 0 {
+            return Err(format!("vertex point: PK error {rc}"));
+        }
+        let position = if point_tag == 0 {
+            None
+        } else {
+            let p = q("vertex point", vertex.point())?;
+            Some([p.x, p.y, p.z])
+        };
         let precision = q("vertex precision", vertex.precision())?;
         vertex_digests.push(VertexDigest {
             id: q("vertex id", vertex.entity().identifier())?,
-            position: [p.x, p.y, p.z],
+            position,
             tolerance: (precision > exact * (1.0 + 1e-9)).then_some(precision),
         });
     }
-    let bounds = q("bounds", body.bounding_box())?;
+    // Parasolid cannot box an empty body or a wire edge without a curve; that is
+    // recorded rather than treated as a failed query.
+    let bounds = body.bounding_box();
+    let mut notes = vec![format!("exact_precision={exact:e}")];
     Ok(BodyDigest {
         body_type,
         counts: Counts {
@@ -189,18 +207,17 @@ fn describe_body(body: &Body, exact: f64) -> Described<BodyDigest> {
             vertices: vertices.len(),
             fins,
         },
-        bounds: Some([
-            bounds.min.x,
-            bounds.min.y,
-            bounds.min.z,
-            bounds.max.x,
-            bounds.max.y,
-            bounds.max.z,
-        ]),
+        bounds: match &bounds {
+            Ok(b) => Some([b.min.x, b.min.y, b.min.z, b.max.x, b.max.y, b.max.z]),
+            Err(error) => {
+                notes.push(format!("bounds unavailable: {error}"));
+                None
+            }
+        },
         faces: face_digests,
         edges: edge_digests,
         vertices: vertex_digests,
-        notes: vec![format!("exact_precision={exact:e}")],
+        notes,
     })
 }
 

@@ -456,7 +456,9 @@ fn has_embedded_base_schema(schema_name: &[u8]) -> bool {
 
 #[derive(Debug, Clone)]
 pub struct TextEnvelope {
-    pub header: CommonHeader,
+    /// Absent when the input is a bare kernel stream (it begins with `T` and has
+    /// no container header), the form `PK_PART_transmit_b` produces.
+    pub header: Option<CommonHeader>,
     pub stream: TextStream,
     pub prefix: TextPrefix,
     pub node_start: usize,
@@ -464,23 +466,34 @@ pub struct TextEnvelope {
 
 impl TextEnvelope {
     pub fn parse(input: &[u8]) -> Result<Self> {
-        let header = CommonHeader::parse(input)?;
-        let format = header.value("FORMAT").ok_or_else(|| {
-            XtError::new(
-                ErrorKind::InvalidHeader,
-                header.header_span,
-                "missing FORMAT common-header key",
-            )
-        })?;
-        if !format.eq_ignore_ascii_case(b"text") {
-            return Err(XtError::new(
-                ErrorKind::UnsupportedFormat,
-                header.header_span,
-                format!("FORMAT is {:?}, not text", String::from_utf8_lossy(format)),
-            ));
+        let header = match CommonHeader::parse(input) {
+            Ok(header) => Some(header),
+            Err(error)
+                if error.kind == ErrorKind::MissingHeaderMarker && input.first() == Some(&b'T') =>
+            {
+                None
+            }
+            Err(error) => return Err(error),
+        };
+        if let Some(header) = &header {
+            let format = header.value("FORMAT").ok_or_else(|| {
+                XtError::new(
+                    ErrorKind::InvalidHeader,
+                    header.header_span,
+                    "missing FORMAT common-header key",
+                )
+            })?;
+            if !format.eq_ignore_ascii_case(b"text") {
+                return Err(XtError::new(
+                    ErrorKind::UnsupportedFormat,
+                    header.header_span,
+                    format!("FORMAT is {:?}, not text", String::from_utf8_lossy(format)),
+                ));
+            }
         }
 
-        let stream = TextStream::from_raw(&input[header.body_offset..], header.body_offset);
+        let body_offset = header.as_ref().map_or(0, |header| header.body_offset);
+        let stream = TextStream::from_raw(&input[body_offset..], body_offset);
         let mut cursor = stream.cursor();
         let prefix = cursor.read_prefix()?;
         let node_start = cursor.position();

@@ -1,0 +1,17 @@
+**ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz**************************
+**PARASOLID !"#$%&'()*+,-./:;<=>?@[\]^_`{|}~0123456789**************************
+**PART1;FRU=parasolid-rs;APPL=parasolid-rs;FORMAT=text;
+**PART2;SCH=SCH_3701243_37102;USFLD_SIZE=0;
+**PART3;
+**END_OF_HEADER*****************************************************************
+T51 : TRANSMIT FILE created by modeller version 370124323 SCH_3701243_37102_1300
+6239 0 12 36 CCCI7 lattice222 0 CCCI4 mesh1006 0 I8 polyline1008 0 CCCCCCCDI5 ow
+ner1040 0 CCCI16 boundary_lattice222 0 CCCI13 boundary_mesh1006 0 I17 boundary_p
+olyline1008 0 CCCA16 index_map_offset0 0 1 dA9 index_map82 0 A17 node_id_index_m
+ap82 0 A20 schema_embedding_map82 0 A5 child12 0 A14 lowest_node_id0 0 1 dA16 me
+sh_offset_data206 0 Z1 7 0 0 0 0 0 0 0 0 0 1e3 1e-8 0 0 0 1 0 2 1 2 0 0 0 0 0 0
+ 3 0 4 0 0 0 0 0 0 0 13 255 2 2 0 1 0 0 5 0 3 0 19 9 CCCCCCI5 frame230 0 CA5 own
+er12 0 Z3 1 0 1 0 0 2 0 V0 18 255 4 7 0 6 0 7 0 ?1 17 255 6 0 0 0 0 4 8 5 0 0 +1
+8 7 5 0 8 4 9 0 ?1 17 8 0 0 0 0 7 6 5 0 10 -18 9 4 0 11 7 0 0 ?1 17 11 0 0 0 0 9
+ 10 12 0 0 -17 10 0 0 0 0 7 11 12 0 0 +16 255 12 3 0 ?10 5 0 0 0 0 2 16 5 6 0 ?6
+ 0 12 0 0 0 2 1 0 

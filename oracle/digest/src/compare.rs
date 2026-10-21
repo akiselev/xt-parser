@@ -146,7 +146,7 @@ pub fn compare_files(native: &FileDigest, oracle: Option<&FileDigest>) -> Verdic
 }
 
 fn compare_body(n: &BodyDigest, o: &BodyDigest, out: &mut Vec<(Category, String)>) {
-    if n.body_type != o.body_type {
+    if !body_types_agree(n, o) {
         out.push((
             Category::BodyType,
             format!("native {} oracle {}", n.body_type, o.body_type),
@@ -162,8 +162,18 @@ fn compare_body(n: &BodyDigest, o: &BodyDigest, out: &mut Vec<(Category, String)
         ));
     }
 
-    let n_surf = multiset(n.faces.iter().map(|f| f.surface.class));
-    let o_surf = multiset(o.faces.iter().map(|f| f.surface.class));
+    let n_surf = multiset(
+        n.faces
+            .iter()
+            .filter_map(|f| f.surface.as_ref())
+            .map(|g| g.class),
+    );
+    let o_surf = multiset(
+        o.faces
+            .iter()
+            .filter_map(|f| f.surface.as_ref())
+            .map(|g| g.class),
+    );
     if n_surf != o_surf {
         out.push((
             Category::SurfaceClasses,
@@ -190,15 +200,15 @@ fn compare_body(n: &BodyDigest, o: &BodyDigest, out: &mut Vec<(Category, String)
     }
 
     let by_id = ids_agree(n.faces.iter().map(|f| f.id), o.faces.iter().map(|f| f.id));
-    let faces = pair(&n.faces, &o.faces, by_id, |f| f.id, |f| &f.surface);
+    let faces = pair(&n.faces, &o.faces, by_id, |f| f.id, |f| f.surface.as_ref());
     for (nf, of) in &faces {
-        if let Some(reason) = geometry_difference(&nf.surface, &of.surface) {
+        if let Some(reason) = optional_geometry_difference(&nf.surface, &of.surface) {
             out.push((Category::SurfaceParams, format!("face {}: {reason}", nf.id)));
             break;
         }
     }
     for (nf, of) in &faces {
-        if nf.surface.class == of.surface.class
+        if class_of(&nf.surface) == class_of(&of.surface)
             && nf.same_sense.is_some()
             && of.same_sense.is_some()
             && nf.same_sense != of.same_sense
@@ -214,7 +224,7 @@ fn compare_body(n: &BodyDigest, o: &BodyDigest, out: &mut Vec<(Category, String)
         }
     }
     for (nf, of) in &faces {
-        if nf.surface.class == of.surface.class && nf.loops != of.loops {
+        if class_of(&nf.surface) == class_of(&of.surface) && nf.loops != of.loops {
             out.push((
                 Category::FaceLoops,
                 format!("face {} native {} oracle {}", nf.id, nf.loops, of.loops),
@@ -292,7 +302,7 @@ fn compare_body(n: &BodyDigest, o: &BodyDigest, out: &mut Vec<(Category, String)
             let Some(ov) = o_by_id.get(&nv.id) else {
                 continue;
             };
-            if !close_all(&nv.position, &ov.position) {
+            if !positions_agree(&nv.position, &ov.position) {
                 out.push((
                     Category::VertexPositions,
                     format!(
@@ -319,8 +329,8 @@ fn compare_body(n: &BodyDigest, o: &BodyDigest, out: &mut Vec<(Category, String)
             }
         }
     } else {
-        let mut a: Vec<[f64; 3]> = n.vertices.iter().map(|v| v.position).collect();
-        let mut b: Vec<[f64; 3]> = o.vertices.iter().map(|v| v.position).collect();
+        let mut a: Vec<[f64; 3]> = n.vertices.iter().filter_map(|v| v.position).collect();
+        let mut b: Vec<[f64; 3]> = o.vertices.iter().filter_map(|v| v.position).collect();
         let key = |p: &[f64; 3], q: &[f64; 3]| {
             p[0].total_cmp(&q[0])
                 .then(p[1].total_cmp(&q[1]))
@@ -353,6 +363,27 @@ fn compare_body(n: &BodyDigest, o: &BodyDigest, out: &mut Vec<(Category, String)
     }
 }
 
+fn positions_agree(native: &Option<[f64; 3]>, oracle: &Option<[f64; 3]>) -> bool {
+    match (native, oracle) {
+        (None, None) => true,
+        (Some(a), Some(b)) => close_all(a, b),
+        _ => false,
+    }
+}
+
+/// An acorn or minimum body is stored as a wire body with no edges, and an empty
+/// body as a general body with no shells; Parasolid names them from structure
+/// (and the wrapper reports a minimum body as general). Every other kind must match exactly.
+fn body_types_agree(native: &BodyDigest, oracle: &BodyDigest) -> bool {
+    native.body_type == oracle.body_type
+        || (native.body_type == "general"
+            && native.counts.shells == 0
+            && oracle.body_type == "empty")
+        || (native.body_type == "wire"
+            && native.counts.edges == 0
+            && matches!(oracle.body_type.as_str(), "acorn" | "general"))
+}
+
 fn tolerance_agrees(native: Option<f64>, oracle: Option<f64>) -> bool {
     match (native, oracle) {
         (None, None) => true,
@@ -377,7 +408,7 @@ fn pair<'a, T>(
     oracle: &'a [T],
     by_id: bool,
     id: impl Fn(&T) -> i32,
-    geometry: impl Fn(&T) -> &Geometry,
+    geometry: impl Fn(&T) -> Option<&Geometry>,
 ) -> Vec<(&'a T, &'a T)> {
     if by_id {
         let o_by_id: BTreeMap<i32, &T> = oracle.iter().map(|t| (id(t), t)).collect();
@@ -388,9 +419,9 @@ fn pair<'a, T>(
     }
     let order = |a: &&T, b: &&T| {
         let (ga, gb) = (geometry(a), geometry(b));
-        ga.class.cmp(&gb.class).then_with(|| {
-            let pa = ga.params.as_deref().unwrap_or(&[]);
-            let pb = gb.params.as_deref().unwrap_or(&[]);
+        ga.map(|g| g.class).cmp(&gb.map(|g| g.class)).then_with(|| {
+            let pa = ga.and_then(|g| g.params.as_deref()).unwrap_or(&[]);
+            let pb = gb.and_then(|g| g.params.as_deref()).unwrap_or(&[]);
             for (x, y) in pa.iter().zip(pb) {
                 let ord = x.total_cmp(y);
                 if ord.is_ne() {
@@ -405,6 +436,21 @@ fn pair<'a, T>(
     a.sort_by(order);
     b.sort_by(order);
     a.into_iter().zip(b).collect()
+}
+
+fn class_of(geometry: &Option<Geometry>) -> Option<Class> {
+    geometry.as_ref().map(|g| g.class)
+}
+
+fn optional_geometry_difference(
+    native: &Option<Geometry>,
+    oracle: &Option<Geometry>,
+) -> Option<String> {
+    match (native, oracle) {
+        (None, None) => None,
+        (Some(n), Some(o)) => geometry_difference(n, o),
+        _ => Some("geometry present on one side only".to_owned()),
+    }
 }
 
 fn geometry_difference(native: &Geometry, oracle: &Geometry) -> Option<String> {
@@ -454,7 +500,7 @@ mod tests {
             bounds: Some([0.0, 0.0, 0.0, 1.0, 1.0, 1.0]),
             faces: vec![FaceDigest {
                 id,
-                surface,
+                surface: Some(surface),
                 same_sense: Some(true),
                 loops: 1,
             }],
@@ -466,7 +512,7 @@ mod tests {
             }],
             vertices: vec![VertexDigest {
                 id: 9,
-                position: [0.0, 0.0, 0.0],
+                position: Some([0.0, 0.0, 0.0]),
                 tolerance: None,
             }],
             notes: Vec::new(),

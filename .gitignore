@@ -7,3 +7,4 @@
 *.x_b
 *.xt
 /oracle/target/
+!/crates/xt-schema/tests/fixtures/**/*.x_t

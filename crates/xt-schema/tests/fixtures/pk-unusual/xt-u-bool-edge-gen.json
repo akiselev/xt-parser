@@ -1,0 +1,313 @@
+{
+ "schema": "parasolid-re.fixture/v1",
+ "packet": "R-52",
+ "case": [
+  "body: general (mixed, cellular, non-manifold)",
+  "edge: general / non-manifold (more than two fins, or two of one sense)",
+  "region: solid 'S'"
+ ],
+ "stage": "r52_xt_unusual",
+ "pk_function": [
+  "PK_BODY_ask_type",
+  "PK_BODY_boolean_2",
+  "PK_BODY_check",
+  "PK_PART_receive",
+  "PK_PART_transmit",
+  "PK_SESSION_set_general_topology"
+ ],
+ "binary_sha256": "c900fa3f430fe67c2adb15a50f9604d9812ed81a02c5006b66689dac28263073",
+ "session": {
+  "behaviour": "latest",
+  "check_arguments": true,
+  "precision": "PK default (not set)",
+  "general_topology": "set only where a step says so"
+ },
+ "inputs": {
+  "probe_case": "bool_edge_gen",
+  "construction": "unite of two unit blocks sharing one edge, PK_SESSION_set_general_topology on",
+  "source": "artifacts/port/r52-xt-unusual/20261021T043125Z-r52/tools/probe-r52/src/main.rs (fn case)"
+ },
+ "options": {
+  "PK_BODY_check": "o_t v5, max_faults 20, every check on, attribs off; run 1 extra_faults 0 (0x6090), run 2 extra_faults 1 (0x6091) (as R-39)",
+  "PK_PART_transmit": "parasolid-rs fileio::transmit_with_format(Text): PK_PART_transmit_o_t v3, transmit_format text, transmit_version 0 (current, embedded schema), user fields off; all result bodies in one part list",
+  "PK_PART_receive": "parasolid-rs fileio::receive in a fresh session (separate Wine process), receive o_t defaults, format text"
+ },
+ "xt": {
+  "file": "xt-u-bool-edge-gen.x_t",
+  "sha256": "96a0bd8a8166f980b2d848e9569930831977e6c0a8142ddb266346780fa9c76c",
+  "bytes": 6511,
+  "header_schema": "SCH_3701243_37102",
+  "transmit_line": "T51 : TRANSMIT FILE created by modeller version 370124323 SCH_3701243_37102_13006",
+  "note": "schema SCH_37102 embedded as differences from base SCH_13006"
+ },
+ "result": {
+  "steps": [
+   {
+    "call": "PK_SESSION_set_general_topology",
+    "rc": "PK_ERROR_no_errors",
+    "readback": 1
+   },
+   {
+    "call": "PK_BODY_boolean_2 (parasolid-sys default options)",
+    "rc": "PK_ERROR_no_errors",
+    "result": "PK_boolean_result_success_c",
+    "bodies": [
+     51
+    ],
+    "function": 15903,
+    "allow_disjoint": false
+   }
+  ],
+  "transmit": {
+   "call": "PK_PART_transmit (parasolid-rs fileio::transmit_with_format Text; o_t v3 defaults, transmit_version 0)",
+   "n_parts": 1,
+   "ok": true
+  },
+  "bodies": [
+   {
+    "counts": {
+     "body_type": "PK_BODY_type_general_c",
+     "regions": 3,
+     "region_kinds": [
+      "void",
+      "solid",
+      "solid"
+     ],
+     "shells_per_region": [
+      1,
+      1,
+      1
+     ],
+     "shell_types": [
+      "PK_SHELL_type_wireframe_free_c",
+      "PK_SHELL_type_wireframe_free_c",
+      "PK_SHELL_type_wireframe_free_c"
+     ],
+     "face_uses": 24,
+     "wireframe_edge_uses": 0,
+     "acorn_vertices": 0,
+     "faces": 12,
+     "faces_without_surface": 0,
+     "surface_classes": [
+      "PK_CLASS_plane",
+      "PK_CLASS_plane",
+      "PK_CLASS_plane",
+      "PK_CLASS_plane",
+      "PK_CLASS_plane",
+      "PK_CLASS_plane",
+      "PK_CLASS_plane",
+      "PK_CLASS_plane",
+      "PK_CLASS_plane",
+      "PK_CLASS_plane",
+      "PK_CLASS_plane",
+      "PK_CLASS_plane"
+     ],
+     "loops": 12,
+     "loops_per_face": [
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1
+     ],
+     "loop_types": [
+      "PK_LOOP_type_outer_c",
+      "PK_LOOP_type_outer_c",
+      "PK_LOOP_type_outer_c",
+      "PK_LOOP_type_outer_c",
+      "PK_LOOP_type_outer_c",
+      "PK_LOOP_type_outer_c",
+      "PK_LOOP_type_outer_c",
+      "PK_LOOP_type_outer_c",
+      "PK_LOOP_type_outer_c",
+      "PK_LOOP_type_outer_c",
+      "PK_LOOP_type_outer_c",
+      "PK_LOOP_type_outer_c"
+     ],
+     "fins": 48,
+     "edges": 23,
+     "fins_per_edge": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      4
+     ],
+     "ring_edges": 0,
+     "edges_on_one_face_twice": 0,
+     "curve_classes": [
+      "PK_CLASS_line",
+      "PK_CLASS_line",
+      "PK_CLASS_line",
+      "PK_CLASS_line",
+      "PK_CLASS_line",
+      "PK_CLASS_line",
+      "PK_CLASS_line",
+      "PK_CLASS_line",
+      "PK_CLASS_line",
+      "PK_CLASS_line",
+      "PK_CLASS_line",
+      "PK_CLASS_line",
+      "PK_CLASS_line",
+      "PK_CLASS_line",
+      "PK_CLASS_line",
+      "PK_CLASS_line",
+      "PK_CLASS_line",
+      "PK_CLASS_line",
+      "PK_CLASS_line",
+      "PK_CLASS_line",
+      "PK_CLASS_line",
+      "PK_CLASS_line",
+      "PK_CLASS_line"
+     ],
+     "vertices": 14
+    },
+    "check_extra0": {
+     "rc": "PK_ERROR_no_errors",
+     "n_faults": 0,
+     "faults": []
+    },
+    "check_extra1": {
+     "rc": "PK_ERROR_no_errors",
+     "n_faults": 0,
+     "faults": []
+    }
+   }
+  ],
+  "receive": {
+   "ok": true,
+   "n_bodies": 1,
+   "counts_equal_to_sent": true,
+   "checks_equal_to_sent": true
+  }
+ },
+ "xt_parser": {
+  "revision": "xt-parser lane/oracle-xcheck 123d09a (git archive; working tree not used)",
+  "lane_cli": {
+   "xt-schema-inspect": "failed: InvalidSchema target schema must be SCH_37102 (CLI hard-wires parse_text_30100)",
+   "xt-native-dump": "failed: InvalidSchema at bytes 352..440: target schema must be SCH_37102"
+  },
+  "library_37102": {
+   "parse": "ok",
+   "nodes": 165,
+   "bodies": [
+    {
+     "body_type": 6,
+     "circuit_fins": 48,
+     "edges": 23,
+     "edges_with_curve": 23,
+     "errors": [],
+     "faces": 12,
+     "fins_per_edge": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      4
+     ],
+     "fins_with_curve": 0,
+     "front_face_uses": 12,
+     "isolated_vertex_loops": 0,
+     "loops": 12,
+     "loops_per_face": [
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1
+     ],
+     "regions": [
+      {
+       "kind": "Void",
+       "shells": [
+        {
+         "back_faces": 0,
+         "front_faces": 12
+        }
+       ]
+      },
+      {
+       "kind": "Solid",
+       "shells": [
+        {
+         "back_faces": 6,
+         "front_faces": 0
+        }
+       ]
+      },
+      {
+       "kind": "Solid",
+       "shells": [
+        {
+         "back_faces": 6,
+         "front_faces": 0
+        }
+       ]
+      }
+     ],
+     "tolerant_edges": 0,
+     "tolerant_vertices": 0,
+     "vertices": 14,
+     "vertices_with_point": 14
+    }
+   ]
+  },
+  "differences_from_pk": []
+ },
+ "notes": "4-fin edge, two solid regions",
+ "raw_result": "artifacts/port/r52-xt-unusual/20261021T043125Z-r52/raw/runs/r4/bool_edge_gen.build.json, bool_edge_gen.recv.json (git-ignored)",
+ "run_env": {
+  "wine": "one process per step, systemd-run MemoryMax=2G",
+  "repeat": "r1, r2, r4 byte-identical .xmt_txt (tolerant_block changed between r2 and r4 by design; wire_bare new in r4)"
+ }
+}

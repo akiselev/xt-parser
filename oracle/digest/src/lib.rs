@@ -51,7 +51,8 @@ pub struct Counts {
 pub struct FaceDigest {
     /// Entity identifier; 0 when the producer has none.
     pub id: i32,
-    pub surface: Geometry,
+    /// `None` for a face with no surface.
+    pub surface: Option<Geometry>,
     /// True when the face normal is the surface normal.
     pub same_sense: Option<bool>,
     pub loops: usize,
@@ -69,7 +70,8 @@ pub struct EdgeDigest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VertexDigest {
     pub id: i32,
-    pub position: [f64; 3],
+    /// `None` for a vertex with no point.
+    pub position: Option<[f64; 3]>,
     pub tolerance: Option<f64>,
 }
 

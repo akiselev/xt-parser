@@ -1,0 +1,124 @@
+{
+ "binary_sha256": "c900fa3f430fe67c2adb15a50f9604d9812ed81a02c5006b66689dac28263073",
+ "bodies": [
+  {
+   "body_type": "Solid",
+   "check": {
+    "call": "PK_BODY_check (NULL options)",
+    "n_faults": 0,
+    "states": []
+   },
+   "edges": 2,
+   "faces": 3,
+   "mass_props": {
+    "accuracy": 0.999,
+    "amount": {
+     "dec": "7.85397236979086870e2",
+     "hex": "0x40888b2d8a94cf85"
+    },
+    "cog": [
+     {
+      "dec": "-6.26668644732179294e-8",
+      "hex": "0xbe70d26f237d74ae"
+     },
+     {
+      "dec": "3.60854586875087924e-1",
+      "hex": "0x3fd7183dd64f5db1"
+     },
+     {
+      "dec": "5.10416860335335887e0",
+      "hex": "0x40146aab2ca2b0d1"
+     }
+    ],
+    "inertia": [
+     {
+      "dec": "1.21611792129517398e4",
+      "hex": "0x40c7c096f073335f"
+     },
+     {
+      "dec": "5.46665951833683918e-4",
+      "hex": "0x3f41e9c431467288"
+     },
+     {
+      "dec": "2.02153641305611643e-4",
+      "hex": "0x3f2a7f268e6cf154"
+     },
+     {
+      "dec": "5.46665951833683918e-4",
+      "hex": "0x3f41e9c431467288"
+     },
+     {
+      "dec": "1.22632298770348752e4",
+      "hex": "0x40c7f39d6c9c5572"
+     },
+     {
+      "dec": "-1.38754703230939117e3",
+      "hex": "0xc095ae30293cdac3"
+     },
+     {
+      "dec": "2.02153641305611643e-4",
+      "hex": "0x3f2a7f268e6cf154"
+     },
+     {
+      "dec": "-1.38754703230939117e3",
+      "hex": "0xc095ae30293cdac3"
+     },
+     {
+      "dec": "9.71520428067154899e3",
+      "hex": "0x40c2f99a25de79c1"
+     }
+    ],
+    "mass": {
+     "dec": "7.85397236979086870e2",
+     "hex": "0x40888b2d8a94cf85"
+    },
+    "periphery": {
+     "dec": "4.83388434449564954e2",
+     "hex": "0x407e3637070a9857"
+    }
+   },
+   "vertices": 0
+  }
+ ],
+ "case_id": "r49-xtmin-ellcyl",
+ "evidence": {
+  "notes": "artifacts/port/r49-xt-receive/20261021T043038Z-r49/notes.md",
+  "probe": "artifacts/port/r49-xt-receive/20261021T043038Z-r49/tools/probe-r49 (stage fixture)",
+  "raw": "artifacts/port/r49-xt-receive/20261021T043038Z-r49/raw/fix/ellcyl.out"
+ },
+ "exercises": "CYLINDER + 2 PLANE faces, CIRCLE and ELLIPSE ring edges; exact",
+ "grade": "dynamic-observed",
+ "inputs": {
+  "construction": "cylinder r5 z[0,20] minus a 60^3 block rotated 30 deg about +x through the origin then translated (0,0,10): plane cut through (0,0,10)",
+  "session": "parasolid-rs Session defaults (precision 1e-8, size box 1e3), check_arguments on",
+  "transmit": "PK_PART_transmit_b, PK_PART_transmit_o_t v3, transmit_format text (18220), transmit_version 371 (non-embedded SCH_3701243_37102)"
+ },
+ "packet": "xt-minimal (R-49 b)",
+ "receive": {
+  "call": "PK_PART_receive_b (parasolid-rs fileio::receive_from_bytes, Text), PK_PART_receive_o_t v1",
+  "n_parts": 1,
+  "rc": 0
+ },
+ "schema": "parasolid-re.xt-minimal-fixture/v1",
+ "xt": {
+  "bytes": 889,
+  "container_header": false,
+  "file": "r49-xtmin-ellcyl.x_t",
+  "node_inventory": {
+   "BODY": 1,
+   "CIRCLE": 1,
+   "CYLINDER": 1,
+   "EDGE": 2,
+   "ELLIPSE": 1,
+   "FACE": 3,
+   "HALFEDGE": 4,
+   "LOOP": 4,
+   "PLANE": 2,
+   "REGION": 2,
+   "SHELL": 2
+  },
+  "nodes": 23,
+  "schema_name": "SCH_3701243_37102",
+  "sha256": "1a094049e7ccc14f31d0b04264a1c95c3d8e5f565f4e2b1ce6fc4ece0b590850"
+ }
+}

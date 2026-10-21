@@ -1,0 +1,124 @@
+{
+ "binary_sha256": "c900fa3f430fe67c2adb15a50f9604d9812ed81a02c5006b66689dac28263073",
+ "bodies": [
+  {
+   "body_type": "Solid",
+   "check": {
+    "call": "PK_BODY_check (NULL options)",
+    "n_faults": 0,
+    "states": []
+   },
+   "edges": 12,
+   "faces": 6,
+   "mass_props": {
+    "accuracy": 0.999,
+    "amount": {
+     "dec": "6.00000000000000000e3",
+     "hex": "0x40b7700000000000"
+    },
+    "cog": [
+     {
+      "dec": "0.00000000000000000e0",
+      "hex": "0x0000000000000000"
+     },
+     {
+      "dec": "0.00000000000000000e0",
+      "hex": "0x0000000000000000"
+     },
+     {
+      "dec": "1.50000000000000000e1",
+      "hex": "0x402e000000000000"
+     }
+    ],
+    "inertia": [
+     {
+      "dec": "6.50000000000000000e5",
+      "hex": "0x4123d62000000000"
+     },
+     {
+      "dec": "0.00000000000000000e0",
+      "hex": "0x0000000000000000"
+     },
+     {
+      "dec": "0.00000000000000000e0",
+      "hex": "0x0000000000000000"
+     },
+     {
+      "dec": "0.00000000000000000e0",
+      "hex": "0x0000000000000000"
+     },
+     {
+      "dec": "5.00000000000000000e5",
+      "hex": "0x411e848000000000"
+     },
+     {
+      "dec": "0.00000000000000000e0",
+      "hex": "0x0000000000000000"
+     },
+     {
+      "dec": "0.00000000000000000e0",
+      "hex": "0x0000000000000000"
+     },
+     {
+      "dec": "0.00000000000000000e0",
+      "hex": "0x0000000000000000"
+     },
+     {
+      "dec": "2.50000000000000000e5",
+      "hex": "0x410e848000000000"
+     }
+    ],
+    "mass": {
+     "dec": "6.00000000000000000e3",
+     "hex": "0x40b7700000000000"
+    },
+    "periphery": {
+     "dec": "2.20000000000000000e3",
+     "hex": "0x40a1300000000000"
+    }
+   },
+   "vertices": 8
+  }
+ ],
+ "case_id": "r49-xtmin-block",
+ "evidence": {
+  "notes": "artifacts/port/r49-xt-receive/20261021T043038Z-r49/notes.md",
+  "probe": "artifacts/port/r49-xt-receive/20261021T043038Z-r49/tools/probe-r49 (stage fixture)",
+  "raw": "artifacts/port/r49-xt-receive/20261021T043038Z-r49/raw/fix/block.out"
+ },
+ "exercises": "PLANE faces, LINE edges, POINT vertices; exact (tolerance ?)",
+ "grade": "dynamic-observed",
+ "inputs": {
+  "construction": "Body::create_solid_block(10, 20, 30): x in [-5,5], y in [-10,10], z in [0,30]",
+  "session": "parasolid-rs Session defaults (precision 1e-8, size box 1e3), check_arguments on",
+  "transmit": "PK_PART_transmit_b, PK_PART_transmit_o_t v3, transmit_format text (18220), transmit_version 371 (non-embedded SCH_3701243_37102)"
+ },
+ "packet": "xt-minimal (R-49 b)",
+ "receive": {
+  "call": "PK_PART_receive_b (parasolid-rs fileio::receive_from_bytes, Text), PK_PART_receive_o_t v1",
+  "n_parts": 1,
+  "rc": 0
+ },
+ "schema": "parasolid-re.xt-minimal-fixture/v1",
+ "xt": {
+  "bytes": 2862,
+  "container_header": false,
+  "file": "r49-xtmin-block.x_t",
+  "node_inventory": {
+   "BODY": 1,
+   "EDGE": 12,
+   "FACE": 6,
+   "HALFEDGE": 24,
+   "LINE": 12,
+   "LOOP": 6,
+   "PLANE": 6,
+   "POINT": 8,
+   "REGION": 2,
+   "SHELL": 2,
+   "VERTEX": 8
+  },
+  "nodes": 87,
+  "schema_name": "SCH_3701243_37102",
+  "sha256": "014c14e618c331de63046371afdbefa31c5d25c2a7e2cbeaf8696a5e70be4f92"
+ }
+}

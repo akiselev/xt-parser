@@ -333,7 +333,7 @@ fn edges_vertices_and_tolerances() {
             .vertices()
             .unwrap()
             .iter()
-            .map(|v| v.position().unwrap())
+            .map(|v| v.position().unwrap().unwrap())
             .collect();
         assert_eq!(positions, CORNERS);
         assert_eq!(body.vertices().unwrap()[0].tolerance(), None);
@@ -344,7 +344,7 @@ fn edges_vertices_and_tolerances() {
 fn face_surface_is_a_plain_plane() {
     with_model(fixture(), |model| {
         let face = model.bodies().next().unwrap().faces().unwrap()[0];
-        match face.surface().unwrap() {
+        match face.surface().unwrap().unwrap() {
             Surface::Plane(plane) => {
                 assert_eq!(plane.origin, [0.0, 0.0, 1.0]);
                 assert_eq!(plane.normal, [0.0, 0.0, 1.0]);
@@ -443,7 +443,7 @@ fn wire_edges_and_isolated_vertices_come_from_the_shell() {
             .iter()
             .map(|v| v.file_index())
             .collect();
-        assert_eq!(vertices, VERTEX);
+        assert_eq!(vertices, [VERTEX[0]]);
     });
 }
 

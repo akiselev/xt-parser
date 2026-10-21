@@ -1,0 +1,241 @@
+{
+ "schema": "parasolid-re.fixture/v1",
+ "packet": "R-52",
+ "case": [
+  "body: solid",
+  "edge: tolerance",
+  "vertex: tolerance",
+  "fin: curve (SP-curve)",
+  "edge: no curve"
+ ],
+ "stage": "r52_xt_unusual",
+ "pk_function": [
+  "PK_BODY_ask_type",
+  "PK_BODY_check",
+  "PK_EDGE_set_precision",
+  "PK_PART_receive",
+  "PK_PART_transmit",
+  "PK_VERTEX_set_precision"
+ ],
+ "binary_sha256": "c900fa3f430fe67c2adb15a50f9604d9812ed81a02c5006b66689dac28263073",
+ "session": {
+  "behaviour": "latest",
+  "check_arguments": true,
+  "precision": "PK default (not set)",
+  "general_topology": "set only where a step says so"
+ },
+ "inputs": {
+  "probe_case": "tolerant_block",
+  "construction": "unit block; PK_EDGE_set_precision(first edge, 1e-4); PK_VERTEX_set_precision(a vertex off that edge, 1e-4)",
+  "source": "artifacts/port/r52-xt-unusual/20261021T043125Z-r52/tools/probe-r52/src/main.rs (fn case)"
+ },
+ "options": {
+  "PK_BODY_check": "o_t v5, max_faults 20, every check on, attribs off; run 1 extra_faults 0 (0x6090), run 2 extra_faults 1 (0x6091) (as R-39)",
+  "PK_PART_transmit": "parasolid-rs fileio::transmit_with_format(Text): PK_PART_transmit_o_t v3, transmit_format text, transmit_version 0 (current, embedded schema), user fields off; all result bodies in one part list",
+  "PK_PART_receive": "parasolid-rs fileio::receive in a fresh session (separate Wine process), receive o_t defaults, format text"
+ },
+ "xt": {
+  "file": "xt-u-tolerant-block.x_t",
+  "sha256": "b14e7d909d8133397056c0686205acaea048ec1106f728b0fee0d79918a0a264",
+  "bytes": 4635,
+  "header_schema": "SCH_3701243_37102",
+  "transmit_line": "T51 : TRANSMIT FILE created by modeller version 370124323 SCH_3701243_37102_13006",
+  "note": "schema SCH_37102 embedded as differences from base SCH_13006"
+ },
+ "result": {
+  "steps": [
+   {
+    "call": "PK_EDGE_set_precision(first edge of block, 1e-4)",
+    "rc": "PK_ERROR_no_errors",
+    "new_edges": [],
+    "edge": 107
+   },
+   {
+    "call": "PK_VERTEX_set_precision(a vertex not on that edge, 1e-4)",
+    "rc": "PK_ERROR_no_errors",
+    "vertex": 84
+   }
+  ],
+  "transmit": {
+   "call": "PK_PART_transmit (parasolid-rs fileio::transmit_with_format Text; o_t v3 defaults, transmit_version 0)",
+   "n_parts": 1,
+   "ok": true
+  },
+  "bodies": [
+   {
+    "counts": {
+     "body_type": "PK_BODY_type_solid_c",
+     "regions": 2,
+     "region_kinds": [
+      "void",
+      "solid"
+     ],
+     "shells_per_region": [
+      1,
+      1
+     ],
+     "shell_types": [
+      "PK_SHELL_type_wireframe_free_c",
+      "PK_SHELL_type_wireframe_free_c"
+     ],
+     "face_uses": 12,
+     "wireframe_edge_uses": 0,
+     "acorn_vertices": 0,
+     "faces": 6,
+     "faces_without_surface": 0,
+     "surface_classes": [
+      "PK_CLASS_plane",
+      "PK_CLASS_plane",
+      "PK_CLASS_plane",
+      "PK_CLASS_plane",
+      "PK_CLASS_plane",
+      "PK_CLASS_plane"
+     ],
+     "loops": 6,
+     "loops_per_face": [
+      1,
+      1,
+      1,
+      1,
+      1,
+      1
+     ],
+     "loop_types": [
+      "PK_LOOP_type_outer_c",
+      "PK_LOOP_type_outer_c",
+      "PK_LOOP_type_outer_c",
+      "PK_LOOP_type_outer_c",
+      "PK_LOOP_type_outer_c",
+      "PK_LOOP_type_outer_c"
+     ],
+     "fins": 24,
+     "edges": 12,
+     "fins_per_edge": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+     ],
+     "ring_edges": 0,
+     "edges_on_one_face_twice": 0,
+     "curve_classes": [
+      "PK_CLASS_line",
+      "PK_CLASS_line",
+      "PK_CLASS_line",
+      "PK_CLASS_line",
+      "PK_CLASS_line",
+      "PK_CLASS_line",
+      "PK_CLASS_line",
+      "PK_CLASS_line",
+      "PK_CLASS_line",
+      "PK_CLASS_line",
+      "PK_CLASS_line"
+     ],
+     "vertices": 8
+    },
+    "check_extra0": {
+     "rc": "PK_ERROR_no_errors",
+     "n_faults": 0,
+     "faults": []
+    },
+    "check_extra1": {
+     "rc": "PK_ERROR_no_errors",
+     "n_faults": 0,
+     "faults": []
+    }
+   }
+  ],
+  "receive": {
+   "ok": true,
+   "n_bodies": 1,
+   "counts_equal_to_sent": true,
+   "checks_equal_to_sent": true
+  }
+ },
+ "xt_parser": {
+  "revision": "xt-parser lane/oracle-xcheck 123d09a (git archive; working tree not used)",
+  "lane_cli": {
+   "xt-schema-inspect": "failed: InvalidSchema target schema must be SCH_37102 (CLI hard-wires parse_text_30100)",
+   "xt-native-dump": "failed: InvalidSchema at bytes 352..440: target schema must be SCH_37102"
+  },
+  "library_37102": {
+   "parse": "ok",
+   "nodes": 118,
+   "bodies": [
+    {
+     "body_type": 1,
+     "circuit_fins": 24,
+     "edges": 12,
+     "edges_with_curve": 11,
+     "errors": [],
+     "faces": 6,
+     "fins_per_edge": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+     ],
+     "fins_with_curve": 2,
+     "front_face_uses": 6,
+     "isolated_vertex_loops": 0,
+     "loops": 6,
+     "loops_per_face": [
+      1,
+      1,
+      1,
+      1,
+      1,
+      1
+     ],
+     "regions": [
+      {
+       "kind": "Void",
+       "shells": [
+        {
+         "back_faces": 0,
+         "front_faces": 6
+        }
+       ]
+      },
+      {
+       "kind": "Solid",
+       "shells": [
+        {
+         "back_faces": 6,
+         "front_faces": 0
+        }
+       ]
+      }
+     ],
+     "tolerant_edges": 1,
+     "tolerant_vertices": 3,
+     "vertices": 8,
+     "vertices_with_point": 8
+    }
+   ]
+  },
+  "differences_from_pk": []
+ },
+ "notes": "tolerant edge with fin SP-curves and no edge curve; 3 tolerant vertices",
+ "raw_result": "artifacts/port/r52-xt-unusual/20261021T043125Z-r52/raw/runs/r4/tolerant_block.build.json, tolerant_block.recv.json (git-ignored)",
+ "run_env": {
+  "wine": "one process per step, systemd-run MemoryMax=2G",
+  "repeat": "r1, r2, r4 byte-identical .xmt_txt (tolerant_block changed between r2 and r4 by design; wire_bare new in r4)"
+ }
+}

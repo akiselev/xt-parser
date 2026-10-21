@@ -1,7 +1,8 @@
 //! Check that embedded-schema decoding agrees with exact-schema decoding.
 //!
 //! Usage: xt-embedded-check LIST
-//! LIST holds one `.x_t` path per line; files must be SCH_30100 or SCH_37102.
+//! LIST holds one `.x_t` path per line; files must be SCH_30100 or SCH_37102
+//! in the embedded-edits form.
 //! Prints one line per file and a summary; exits 1 if any file disagrees.
 
 fn main() -> Result<(), String> {
@@ -19,11 +20,7 @@ fn main() -> Result<(), String> {
         }
         let bytes = std::fs::read(path).map_err(|e| format!("{path}: {e}"))?;
         let embedded = xt_schema::parse_text_embedded(&bytes);
-        let exact = if bytes.windows(7).any(|w| w == b"_37102_") {
-            xt_schema::parse_text_37102(&bytes).map(|d| d.raw)
-        } else {
-            xt_schema::parse_text_30100(&bytes).map(|d| d.raw)
-        };
+        let exact = xt_schema::parse_text(&bytes).map(|d| d.raw().clone());
         match (embedded, exact) {
             (Ok(a), Ok(b)) if a.nodes == b.nodes && a.terminator == b.terminator => agree += 1,
             (a, b) => {

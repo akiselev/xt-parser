@@ -89,12 +89,14 @@ index and expose a read-only topology walk:
 `Model::from_text(&TypedTextDocument)` or `Model::from_binary(..)`, then
 `Model::bodies()` -> `Body` -> `regions()` -> `Region` (`kind()`, `shells()`) ->
 `Shell` (`faces()` = faces whose back shell it is, `front_faces()`,
-`wire_edges()`, `isolated_vertices()`) -> `Face` (`sense()`, `back_shell()`,
-`front_shell()`, `loops()`, `surface()`, `agrees_with_surface()`, `tolerance()`)
+`wire_edges()`, `acorn_vertex()`) -> `Face` (`sense()`, `back_shell()`,
+`front_shell()`, `loops()`, `surface()` (`None` without a surface), `agrees_with_surface()`, `tolerance()`)
 -> `Loop::boundary()` = `LoopBoundary::Circuit(Vec<Fin>)` or
-`IsolatedVertex(Vertex)` -> `Fin` (`sense()`, `edge()`, `vertex()`, `next()`,
+`IsolatedVertex(Vertex)` -> `Fin` (`sense()`, `edge()`, `end_vertex()` = the vertex at the fin's end in loop order, `next()`,
 `other()`, `curve()`) -> `Edge` (`curve()`, `tolerance()`, `fins()`) ->
-`Vertex` (`position()`, `tolerance()`).
+`Vertex` (`position()` = `None` without a point, `tolerance()`). `Body::kind()` is
+`Solid | Wire | Sheet | General` (the stored kind; Parasolid names minimum, acorn
+and empty bodies from structure).
 
 `Surface` is `Plane | Cylinder | Cone | Sphere | Torus` with plain values, or
 `Other(OtherSurface { kind, sense, node })`; `Curve` is `Line | Circle | Ellipse`
@@ -105,3 +107,10 @@ guesses.
 `xt_schema::parse_text_embedded` and `parse_binary_embedded` decode raw records
 for any version whose embedded schema edits apply to the V13 base, using each
 file's own layouts; typed conversion remains limited to the generated schemas.
+
+`xt_schema::parse_text` picks the generated schema the file names and accepts
+both text forms: the embedded-edits form (`SCH_<ver>_<schema>_<base>`) and the
+complete form (`SCH_<ver>_<schema>`, no edits, what `PK_PART_transmit` writes at
+the current version with `transmit_version` 371), with or without the
+`**...END_OF_HEADER` container header (`TextEnvelope::header` is `None` for a
+bare kernel stream).

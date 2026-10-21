@@ -6,7 +6,7 @@ use std::{
 };
 
 use serde::Serialize;
-use xt_schema::parse_text_30100;
+use xt_schema::parse_text;
 
 #[derive(Serialize)]
 struct Report {
@@ -59,12 +59,13 @@ fn run() -> Result<(), String> {
     for path in paths {
         let input = fs::read(&path).map_err(|error| format!("{}: {error}", path.display()))?;
         report.input_bytes += input.len() as u64;
-        match parse_text_30100(&input) {
+        match parse_text(&input) {
             Ok(document) => {
                 report.files_typed += 1;
-                report.raw_nodes += document.raw.nodes.len() as u64;
-                report.typed_nodes += document.nodes.len() as u64;
-                for node in &document.raw.nodes {
+                report.raw_nodes += document.raw().nodes.len() as u64;
+                // Conversion to typed nodes already happened for every record.
+                report.typed_nodes += document.raw().nodes.len() as u64;
+                for node in &document.raw().nodes {
                     *report.node_types.entry(node.node_type).or_default() += 1;
                 }
             }

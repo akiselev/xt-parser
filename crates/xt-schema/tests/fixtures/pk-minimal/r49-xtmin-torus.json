@@ -1,0 +1,118 @@
+{
+ "binary_sha256": "c900fa3f430fe67c2adb15a50f9604d9812ed81a02c5006b66689dac28263073",
+ "bodies": [
+  {
+   "body_type": "Solid",
+   "check": {
+    "call": "PK_BODY_check (NULL options)",
+    "n_faults": 0,
+    "states": []
+   },
+   "edges": 0,
+   "faces": 1,
+   "mass_props": {
+    "accuracy": 0.999,
+    "amount": {
+     "dec": "1.77652879219608440e3",
+     "hex": "0x409bc21d7bb39240"
+    },
+    "cog": [
+     {
+      "dec": "-3.98588069875106197e-16",
+      "hex": "0xbcbcb8a6f10ff7dd"
+     },
+     {
+      "dec": "0.00000000000000000e0",
+      "hex": "0x0000000000000000"
+     },
+     {
+      "dec": "0.00000000000000000e0",
+      "hex": "0x0000000000000000"
+     }
+    ],
+    "inertia": [
+     {
+      "dec": "9.88194140659071854e4",
+      "hex": "0x40f82036a003929c"
+     },
+     {
+      "dec": "0.00000000000000000e0",
+      "hex": "0x0000000000000000"
+     },
+     {
+      "dec": "0.00000000000000000e0",
+      "hex": "0x0000000000000000"
+     },
+     {
+      "dec": "0.00000000000000000e0",
+      "hex": "0x0000000000000000"
+     },
+     {
+      "dec": "9.88194140659071854e4",
+      "hex": "0x40f82036a003929c"
+     },
+     {
+      "dec": "0.00000000000000000e0",
+      "hex": "0x0000000000000000"
+     },
+     {
+      "dec": "0.00000000000000000e0",
+      "hex": "0x0000000000000000"
+     },
+     {
+      "dec": "0.00000000000000000e0",
+      "hex": "0x0000000000000000"
+     },
+     {
+      "dec": "1.89644448566931998e5",
+      "hex": "0x4107266396aa4278"
+     }
+    ],
+    "mass": {
+     "dec": "1.77652879219608440e3",
+     "hex": "0x409bc21d7bb39240"
+    },
+    "periphery": {
+     "dec": "1.18435252813072293e3",
+     "hex": "0x40928168fd226180"
+    }
+   },
+   "vertices": 0
+  }
+ ],
+ "case_id": "r49-xtmin-torus",
+ "evidence": {
+  "notes": "artifacts/port/r49-xt-receive/20261021T043038Z-r49/notes.md",
+  "probe": "artifacts/port/r49-xt-receive/20261021T043038Z-r49/tools/probe-r49 (stage fixture)",
+  "raw": "artifacts/port/r49-xt-receive/20261021T043038Z-r49/raw/fix/torus.out"
+ },
+ "exercises": "TORUS single face, no loops/edges/vertices; exact",
+ "grade": "dynamic-observed",
+ "inputs": {
+  "construction": "Body::create_solid_torus(10, 3)",
+  "session": "parasolid-rs Session defaults (precision 1e-8, size box 1e3), check_arguments on",
+  "transmit": "PK_PART_transmit_b, PK_PART_transmit_o_t v3, transmit_format text (18220), transmit_version 371 (non-embedded SCH_3701243_37102)"
+ },
+ "packet": "xt-minimal (R-49 b)",
+ "receive": {
+  "call": "PK_PART_receive_b (parasolid-rs fileio::receive_from_bytes, Text), PK_PART_receive_o_t v1",
+  "n_parts": 1,
+  "rc": 0
+ },
+ "schema": "parasolid-re.xt-minimal-fixture/v1",
+ "xt": {
+  "bytes": 330,
+  "container_header": false,
+  "file": "r49-xtmin-torus.x_t",
+  "node_inventory": {
+   "BODY": 1,
+   "FACE": 1,
+   "REGION": 2,
+   "SHELL": 2,
+   "TORUS": 1
+  },
+  "nodes": 7,
+  "schema_name": "SCH_3701243_37102",
+  "sha256": "d8f80107135a305a1766c8805cd538f2611c0393b4eb0742e2f1c89c0b14c16d"
+ }
+}
