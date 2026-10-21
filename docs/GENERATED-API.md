@@ -80,3 +80,28 @@ scripts/generate-schemas.sh --check
 The generator replaces only a matching schema directory whose existing files
 all carry its generated-file banner. This both removes stale generated modules
 and prevents an accidental output path from deleting handwritten source.
+
+## Resolved B-rep view
+
+`xt_schema::view::sch_30100` (and `sch_37102`) index a typed document by file
+index and expose a read-only topology walk:
+
+`Model::from_text(&TypedTextDocument)` or `Model::from_binary(..)`, then
+`Model::bodies()` -> `Body` -> `regions()` -> `Region` (`kind()`, `shells()`) ->
+`Shell` (`faces()` = faces whose back shell it is, `front_faces()`,
+`wire_edges()`, `isolated_vertices()`) -> `Face` (`sense()`, `back_shell()`,
+`front_shell()`, `loops()`, `surface()`, `agrees_with_surface()`, `tolerance()`)
+-> `Loop::boundary()` = `LoopBoundary::Circuit(Vec<Fin>)` or
+`IsolatedVertex(Vertex)` -> `Fin` (`sense()`, `edge()`, `vertex()`, `next()`,
+`other()`, `curve()`) -> `Edge` (`curve()`, `tolerance()`, `fins()`) ->
+`Vertex` (`position()`, `tolerance()`).
+
+`Surface` is `Plane | Cylinder | Cone | Sphere | Torus` with plain values, or
+`Other(OtherSurface { kind, sense, node })`; `Curve` is `Line | Circle | Ellipse`
+or `Other(OtherCurve { kind, sense, node })`. An unset tolerance is `None` and
+means exact. Every failure is a `ViewError` naming the field; the walk never
+guesses.
+
+`xt_schema::parse_text_embedded` and `parse_binary_embedded` decode raw records
+for any version whose embedded schema edits apply to the V13 base, using each
+file's own layouts; typed conversion remains limited to the generated schemas.
