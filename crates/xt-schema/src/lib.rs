@@ -5,6 +5,7 @@
 //! families, and strongly typed transmitted records.
 
 pub mod schemas;
+pub mod view;
 
 use xt_parser::{BinaryXtDocument, MachineEncoding, Result, XtDocument, schema::SchemaCounts};
 
