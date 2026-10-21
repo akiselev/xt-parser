@@ -6,6 +6,7 @@
 
 pub mod schemas;
 pub mod view;
+pub mod write;
 
 use xt_parser::{BinaryXtDocument, MachineEncoding, Result, XtDocument, schema::SchemaCounts};
 
