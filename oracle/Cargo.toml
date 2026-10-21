@@ -1,0 +1,5 @@
+# Separate workspace: the normal xt-parser build never needs Wine, the Windows
+# target, MinGW or the proprietary Parasolid runtime.
+[workspace]
+resolver = "3"
+members = ["digest", "native-dump", "pk-dump", "compare"]

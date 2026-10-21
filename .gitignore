@@ -6,3 +6,4 @@
 *.x_t
 *.x_b
 *.xt
+/oracle/target/

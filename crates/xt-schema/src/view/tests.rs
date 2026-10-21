@@ -6,7 +6,7 @@ use xt_parser::{
 
 use super::{
     RegionKind, Sense, ViewError,
-    sch_30100::{Curve, Model, Surface, classify_curve, classify_surface},
+    sch_30100::{Curve, LoopBoundary, Model, Surface, classify_curve, classify_surface},
 };
 use crate::schemas::sch_30100::{Node, nodes as n};
 
@@ -274,7 +274,9 @@ fn walks_regions_shells_faces_loops_and_fins() {
 
         let loops = face.loops().unwrap();
         assert_eq!(loops.len(), 1);
-        let fins = loops[0].fins().unwrap();
+        let LoopBoundary::Circuit(fins) = loops[0].boundary().unwrap() else {
+            panic!("expected a circuit");
+        };
         let indices: Vec<_> = fins.iter().map(|f| f.file_index()).collect();
         assert_eq!(indices, FIN);
         for (fin, edge) in fins.iter().zip(EDGE) {
@@ -282,6 +284,27 @@ fn walks_regions_shells_faces_loops_and_fins() {
             assert_eq!(fin.sense().unwrap(), Sense::Forward);
             assert!(fin.other().unwrap().is_none());
             assert_eq!(fin.next().unwrap().file_index(), FIN[(fin.file_index() as usize - 7 + 1) % 3]);
+        }
+    });
+}
+
+#[test]
+fn a_loop_without_an_edge_is_an_isolated_vertex() {
+    let mut nodes = fixture();
+    for node in &mut nodes {
+        if let Node::Halfedge(fin) = node {
+            if fin.file_index == FIN[0] {
+                fin.edge = null();
+                fin.forward = ptr(FIN[0]);
+                fin.backward = ptr(FIN[0]);
+            }
+        }
+    }
+    with_model(nodes, |model| {
+        let face = model.bodies().next().unwrap().faces().unwrap()[0];
+        match face.loops().unwrap()[0].boundary().unwrap() {
+            LoopBoundary::IsolatedVertex(vertex) => assert_eq!(vertex.file_index(), VERTEX[0]),
+            other => panic!("{other:?}"),
         }
     });
 }

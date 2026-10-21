@@ -83,6 +83,20 @@ impl<'a> Model<'a> {
         }
     }
 
+    /// The curve a pointer designates, looking through trimmed-curve wrappers.
+    fn carrier<T>(&'a self, field: &'static str, pointer: XtPointer<T>) -> Result<Option<Curve<'a>>> {
+        let Some(mut node) = self.lookup(field, pointer)? else {
+            return Ok(None);
+        };
+        for _ in 0..=self.nodes.len() {
+            let Node::TrimmedCurve(trimmed) = node else {
+                return classify_curve(field, node).map(Some);
+            };
+            node = Self::require(field, self.lookup(field, trimmed.basis_curve)?)?;
+        }
+        Err(ViewError::Cycle { field })
+    }
+
     fn require<V>(field: &'static str, value: Option<V>) -> Result<V> {
         value.ok_or(ViewError::NullPointer { field })
     }
@@ -260,6 +274,11 @@ impl<'a> Face<'a> {
         m.chain("loop.next", first, |l| m.loop_at("loop.next", l.node.next))
     }
 
+    /// True when the face normal agrees with the surface normal.
+    pub fn agrees_with_surface(&self) -> Result<bool> {
+        Ok((self.sense()? == Sense::Forward) == (self.surface()?.sense() == Sense::Forward))
+    }
+
     pub fn surface(&self) -> Result<Surface<'a>> {
         let node = Model::require(
             "face.surface",
@@ -269,27 +288,38 @@ impl<'a> Face<'a> {
     }
 }
 
+/// What bounds a face along one loop.
+#[derive(Debug, Clone)]
+pub enum LoopBoundary<'a> {
+    /// A closed circuit of fins, in circuit order starting at the loop's first fin.
+    Circuit(Vec<Fin<'a>>),
+    /// A single vertex lying on the face (no edge).
+    IsolatedVertex(Vertex<'a>),
+}
+
 impl<'a> Loop<'a> {
-    /// The fins of the loop in circuit order, starting at the loop's first fin.
-    pub fn fins(&self) -> Result<Vec<Fin<'a>>> {
+    pub fn boundary(&self) -> Result<LoopBoundary<'a>> {
         let m = self.model;
         let first = m.fin_at("loop.halfedge", self.node.halfedge)?;
         let Some(start) = first else {
-            return Ok(Vec::new());
+            return Ok(LoopBoundary::Circuit(Vec::new()));
         };
+        if matches!(start.node.edge, XtPointer::Null) {
+            let vertex = Model::require("halfedge.vertex", start.vertex()?)?;
+            return Ok(LoopBoundary::IsolatedVertex(vertex));
+        }
         let mut out = vec![start];
-        let mut current = Model::require("halfedge.forward", m.fin_at("halfedge.forward", start.node.forward)?)?;
+        let mut current = start.next()?;
         while current.node.file_index != start.node.file_index {
             if out.len() > m.nodes.len() {
-                return Err(ViewError::Cycle { field: "halfedge.forward" });
+                return Err(ViewError::Cycle {
+                    field: "halfedge.forward",
+                });
             }
             out.push(current);
-            current = Model::require(
-                "halfedge.forward",
-                m.fin_at("halfedge.forward", current.node.forward)?,
-            )?;
+            current = current.next()?;
         }
-        Ok(out)
+        Ok(LoopBoundary::Circuit(out))
     }
 }
 
@@ -317,11 +347,9 @@ impl<'a> Fin<'a> {
     }
 
     /// The fin's own curve (a parameter-space or surface-parameter curve), when present.
+    /// Trimmed-curve wrappers are looked through.
     pub fn curve(&self) -> Result<Option<Curve<'a>>> {
-        match self.model.lookup("halfedge.curve", self.node.curve)? {
-            None => Ok(None),
-            Some(node) => classify_curve("halfedge.curve", node).map(Some),
-        }
+        self.model.carrier("halfedge.curve", self.node.curve)
     }
 }
 
@@ -332,10 +360,7 @@ impl<'a> Edge<'a> {
     }
 
     pub fn curve(&self) -> Result<Option<Curve<'a>>> {
-        match self.model.lookup("edge.curve", self.node.curve)? {
-            None => Ok(None),
-            Some(node) => classify_curve("edge.curve", node).map(Some),
-        }
+        self.model.carrier("edge.curve", self.node.curve)
     }
 
     /// Every fin of the edge: the edge's first fin and the ring of `other` fins.
@@ -398,10 +423,23 @@ pub enum Surface<'a> {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct OtherSurface<'a> {
     pub kind: SurfaceKind,
+    pub sense: Sense,
     pub node: &'a Node,
 }
 
 impl Surface<'_> {
+    /// Orientation of the surface normal against the parametric normal.
+    pub fn sense(&self) -> Sense {
+        match self {
+            Self::Plane(s) => s.sense,
+            Self::Cylinder(s) => s.sense,
+            Self::Cone(s) => s.sense,
+            Self::Sphere(s) => s.sense,
+            Self::Torus(s) => s.sense,
+            Self::Other(other) => other.sense,
+        }
+    }
+
     pub fn kind(&self) -> SurfaceKind {
         match self {
             Self::Plane(_) => SurfaceKind::Plane,
@@ -427,10 +465,20 @@ pub enum Curve<'a> {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct OtherCurve<'a> {
     pub kind: CurveKind,
+    pub sense: Sense,
     pub node: &'a Node,
 }
 
 impl Curve<'_> {
+    pub fn sense(&self) -> Sense {
+        match self {
+            Self::Line(c) => c.sense,
+            Self::Circle(c) => c.sense,
+            Self::Ellipse(c) => c.sense,
+            Self::Other(other) => other.sense,
+        }
+    }
+
     pub fn kind(&self) -> CurveKind {
         match self {
             Self::Line(_) => CurveKind::Line,
@@ -446,7 +494,13 @@ fn optional_vec(value: XtVector) -> Option<Vec3> {
 }
 
 pub fn classify_surface<'a>(field: &'static str, node: &'a Node) -> Result<Surface<'a>> {
-    let other = |kind| Ok(Surface::Other(OtherSurface { kind, node }));
+    let other = |kind, sense: u8| {
+        Ok(Surface::Other(OtherSurface {
+            kind,
+            sense: Sense::from_char("surface.sense", sense)?,
+            node,
+        }))
+    };
     match node {
         Node::Plane(s) => Ok(Surface::Plane(Plane {
             origin: required_vec("plane.pvec", s.pvec)?,
@@ -485,22 +539,22 @@ pub fn classify_surface<'a>(field: &'static str, node: &'a Node) -> Result<Surfa
             x_axis: optional_vec(s.x_axis),
             sense: Sense::from_char("torus.sense", s.sense.0)?,
         })),
-        Node::Pipe(_) => other(SurfaceKind::Pipe),
-        Node::BlendedEdge(_) => other(SurfaceKind::BlendedEdge),
-        Node::BlendedVertex(_) => other(SurfaceKind::BlendedVertex),
-        Node::BlendOverlap(_) => other(SurfaceKind::BlendOverlap),
-        Node::BlendBound(_) => other(SurfaceKind::BlendBound),
-        Node::OffsetSurf(_) => other(SurfaceKind::Offset),
-        Node::Parasurf(_) => other(SurfaceKind::Parasurf),
-        Node::ObsoleteCps(_) => other(SurfaceKind::ObsoleteCps),
-        Node::SilhSurf(_) => other(SurfaceKind::Silhouette),
-        Node::SweptSurf(_) => other(SurfaceKind::Swept),
-        Node::SpunSurf(_) => other(SurfaceKind::Spun),
-        Node::Cps(_) => other(SurfaceKind::Cps),
-        Node::ObsoleteMesh(_) => other(SurfaceKind::ObsoleteMesh),
-        Node::PeSurf(_) => other(SurfaceKind::Foreign),
-        Node::BSurface(_) => other(SurfaceKind::Bspline),
-        Node::Mesh(_) => other(SurfaceKind::Mesh),
+        Node::Pipe(s) => other(SurfaceKind::Pipe, s.sense.0),
+        Node::BlendedEdge(s) => other(SurfaceKind::BlendedEdge, s.sense.0),
+        Node::BlendedVertex(s) => other(SurfaceKind::BlendedVertex, s.sense.0),
+        Node::BlendOverlap(s) => other(SurfaceKind::BlendOverlap, s.sense.0),
+        Node::BlendBound(s) => other(SurfaceKind::BlendBound, s.sense.0),
+        Node::OffsetSurf(s) => other(SurfaceKind::Offset, s.sense.0),
+        Node::Parasurf(s) => other(SurfaceKind::Parasurf, s.sense.0),
+        Node::ObsoleteCps(s) => other(SurfaceKind::ObsoleteCps, s.sense.0),
+        Node::SilhSurf(s) => other(SurfaceKind::Silhouette, s.sense.0),
+        Node::SweptSurf(s) => other(SurfaceKind::Swept, s.sense.0),
+        Node::SpunSurf(s) => other(SurfaceKind::Spun, s.sense.0),
+        Node::Cps(s) => other(SurfaceKind::Cps, s.sense.0),
+        Node::ObsoleteMesh(s) => other(SurfaceKind::ObsoleteMesh, s.sense.0),
+        Node::PeSurf(s) => other(SurfaceKind::Foreign, s.sense.0),
+        Node::BSurface(s) => other(SurfaceKind::Bspline, s.sense.0),
+        Node::Mesh(s) => other(SurfaceKind::Mesh, s.sense.0),
         found => Err(ViewError::WrongNode {
             field,
             expected: "a surface",
@@ -510,7 +564,13 @@ pub fn classify_surface<'a>(field: &'static str, node: &'a Node) -> Result<Surfa
 }
 
 pub fn classify_curve<'a>(field: &'static str, node: &'a Node) -> Result<Curve<'a>> {
-    let other = |kind| Ok(Curve::Other(OtherCurve { kind, node }));
+    let other = |kind, sense: u8| {
+        Ok(Curve::Other(OtherCurve {
+            kind,
+            sense: Sense::from_char("curve.sense", sense)?,
+            node,
+        }))
+    };
     match node {
         Node::Line(c) => Ok(Curve::Line(Line {
             origin: required_vec("line.pvec", c.pvec)?,
@@ -532,23 +592,23 @@ pub fn classify_curve<'a>(field: &'static str, node: &'a Node) -> Result<Curve<'
             minor_radius: required_f64("ellipse.minor_radius", c.minor_radius)?,
             sense: Sense::from_char("ellipse.sense", c.sense.0)?,
         })),
-        Node::Parabola(_) => other(CurveKind::Parabola),
-        Node::Hyperbola(_) => other(CurveKind::Hyperbola),
-        Node::Paracurve(_) => other(CurveKind::Paracurve),
-        Node::ObsoleteCpc(_) => other(CurveKind::ObsoleteCpc),
-        Node::PatchBound(_) => other(CurveKind::PatchBound),
-        Node::Intersection(_) => other(CurveKind::Intersection),
-        Node::Silhouette(_) => other(CurveKind::Silhouette),
-        Node::OffsetCurve(_) => other(CurveKind::Offset),
-        Node::Cpc(_) => other(CurveKind::Cpc),
-        Node::ObsoleteSpCurve(_) => other(CurveKind::ObsoleteSpCurve),
-        Node::ObsoletePolyline(_) => other(CurveKind::ObsoletePolyline),
-        Node::PeCurve(_) => other(CurveKind::Foreign),
-        Node::Pcurve(_) => other(CurveKind::Pcurve),
-        Node::TrimmedCurve(_) => other(CurveKind::Trimmed),
-        Node::BCurve(_) => other(CurveKind::Bspline),
-        Node::SpCurve(_) => other(CurveKind::SpCurve),
-        Node::Polyline(_) => other(CurveKind::Polyline),
+        Node::Parabola(s) => other(CurveKind::Parabola, s.sense.0),
+        Node::Hyperbola(s) => other(CurveKind::Hyperbola, s.sense.0),
+        Node::Paracurve(s) => other(CurveKind::Paracurve, s.sense.0),
+        Node::ObsoleteCpc(s) => other(CurveKind::ObsoleteCpc, s.sense.0),
+        Node::PatchBound(s) => other(CurveKind::PatchBound, s.sense.0),
+        Node::Intersection(s) => other(CurveKind::Intersection, s.sense.0),
+        Node::Silhouette(s) => other(CurveKind::Silhouette, s.sense.0),
+        Node::OffsetCurve(s) => other(CurveKind::Offset, s.sense.0),
+        Node::Cpc(s) => other(CurveKind::Cpc, s.sense.0),
+        Node::ObsoleteSpCurve(s) => other(CurveKind::ObsoleteSpCurve, s.sense.0),
+        Node::ObsoletePolyline(s) => other(CurveKind::ObsoletePolyline, s.sense.0),
+        Node::PeCurve(s) => other(CurveKind::Foreign, s.sense.0),
+        Node::Pcurve(s) => other(CurveKind::Pcurve, s.sense.0),
+        Node::TrimmedCurve(s) => other(CurveKind::Trimmed, s.sense.0),
+        Node::BCurve(s) => other(CurveKind::Bspline, s.sense.0),
+        Node::SpCurve(s) => other(CurveKind::SpCurve, s.sense.0),
+        Node::Polyline(s) => other(CurveKind::Polyline, s.sense.0),
         found => Err(ViewError::WrongNode {
             field,
             expected: "a curve",

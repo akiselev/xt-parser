@@ -1,0 +1,10 @@
+# Applies only to the Windows target used for the Parasolid side; the native
+# and compare tools build for the host. Paths are the standard sibling layout.
+[target.x86_64-pc-windows-gnu]
+runner = ["wine"]
+linker = "x86_64-w64-mingw32-gcc"
+rustflags = ["-L", "native=/projects/sinbad/parasolid-rs/lib"]
+
+[env]
+WINEDEBUG = { value = "-all", force = false }
+WINEPATH = { value = "/projects/sinbad/parasolid-rs/lib", force = false }

@@ -1,0 +1,10 @@
+[package]
+name = "xt-pk-dump"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+parasolid = { path = "../../../parasolid-rs/crates/parasolid" }
+serde_json = "1"
+xt-xcheck-digest = { path = "../digest" }
