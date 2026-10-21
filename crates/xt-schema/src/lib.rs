@@ -7,7 +7,10 @@
 pub mod schemas;
 pub mod view;
 
-use xt_parser::{BinaryXtDocument, MachineEncoding, Result, XtDocument, schema::SchemaCounts};
+use xt_parser::{
+    BinaryXtDocument, EmbeddedBinaryXtArchive, MachineEncoding, Result, XtDocument,
+    schema::SchemaCounts,
+};
 
 /// Provenance and inventory for one generated schema module.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -32,6 +35,14 @@ pub struct TypedTextDocument<N> {
 pub struct TypedBinaryDocument<N> {
     pub raw: BinaryXtDocument,
     pub nodes: Vec<N>,
+}
+
+/// A headerless binary partition archive with generated nodes for both members.
+#[derive(Debug, Clone)]
+pub struct TypedEmbeddedBinaryArchive<N> {
+    pub raw: EmbeddedBinaryXtArchive,
+    pub partition_nodes: Vec<N>,
+    pub delta_nodes: Vec<N>,
 }
 
 /// A text document of one of the generated schemas.
@@ -145,6 +156,47 @@ pub fn parse_binary_37102_with_machine(
         .map(schemas::sch_37102::Node::try_from)
         .collect::<Result<Vec<_>>>()?;
     Ok(TypedBinaryDocument { raw, nodes })
+}
+
+/// Parse headerless schema-37102 partition and aggregate-delta members.
+pub fn parse_embedded_binary_archive_37102(
+    partition_input: &[u8],
+    deltas_input: &[u8],
+) -> Result<TypedEmbeddedBinaryArchive<schemas::sch_37102::Node>> {
+    parse_embedded_binary_archive_37102_with_machine(partition_input, deltas_input, None)
+}
+
+/// Parse headerless schema-37102 partition and aggregate-delta members,
+/// supplying the machine representation required by bare binary streams.
+pub fn parse_embedded_binary_archive_37102_with_machine(
+    partition_input: &[u8],
+    deltas_input: &[u8],
+    bare_machine: Option<MachineEncoding>,
+) -> Result<TypedEmbeddedBinaryArchive<schemas::sch_37102::Node>> {
+    let raw = EmbeddedBinaryXtArchive::parse_with_bare_machine(
+        partition_input,
+        deltas_input,
+        &schemas::sch_13006::SCHEMA,
+        &schemas::sch_37102::SCHEMA,
+        bare_machine,
+    )?;
+    let partition_nodes = raw
+        .partition
+        .nodes
+        .iter()
+        .map(schemas::sch_37102::Node::try_from)
+        .collect::<Result<Vec<_>>>()?;
+    let delta_nodes = raw
+        .deltas
+        .nodes
+        .iter()
+        .map(schemas::sch_37102::Node::try_from)
+        .collect::<Result<Vec<_>>>()?;
+    Ok(TypedEmbeddedBinaryArchive {
+        raw,
+        partition_nodes,
+        delta_nodes,
+    })
 }
 
 #[cfg(test)]

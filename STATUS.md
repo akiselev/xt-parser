@@ -28,6 +28,24 @@ Date: 2026-10-21
   LF-normalized SHA-256:
   `c2d06b56144524347834699b33d9dbfe7e6a1b8d3cd125b1a4d68593464f8e5f`.
 
+## Headerless binary partition archives (branch `stash-rework`, 2026-10-21)
+
+- Recovered from an uncommitted stash on 21ae197 (backup
+  `/home/dev/projects/xt-parser-stash-backups/stash0-20261021-base21ae197.patch`).
+- `EmbeddedBinaryEnvelope` parses a binary member whose `PS`/`B` prefix is at
+  byte 0, with no common header; the prefix parser is now shared with
+  `BinaryEnvelope` (`parse_binary_prefix`). `EmbeddedBinaryXtArchive` parses a
+  partition member plus a separate aggregate-delta member;
+  `xt_schema::parse_embedded_binary_archive_37102[_with_machine]` wraps it.
+- `hypothesis`: delta file indices continue the partition's (first delta index =
+  highest partition index + 1, no repeats). No fixture, container sample or
+  oracle run in this repository confirms it; the parser rejects a violating pair.
+  Synthetic unit tests only: `parses_headerless_partition_and_delta_continuation`,
+  `headerless_member_parses_alone_but_a_header_is_not_skipped`,
+  `rejects_non_contiguous_delta_start`.
+- Next probe: obtain a real partition/delta member pair (with its container and
+  hashes), run it through the archive parser, and grade the continuation rule.
+
 ## R-52/R-49 fixtures lane (2026-10-21, same branch)
 
 - `dynamic-observed`: 39 of 39 R-52 unusual bodies (RE `0dacf02c`) and 5 of 5 R-49

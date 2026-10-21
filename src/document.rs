@@ -3,7 +3,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use serde::Serialize;
 
 use crate::{
-    BinaryEnvelope, ErrorKind, MachineEncoding, Result, Span, TextCursor, TextEnvelope, XtError,
+    BinaryEnvelope, EmbeddedBinaryEnvelope, ErrorKind, MachineEncoding, Result, Span, TextCursor,
+    TextEnvelope, XtError,
     binary::BinaryCursor,
     schema::{ElementCount, FieldEdit, FieldSpec, FieldType, NodeSpec, Schema, apply_field_edits},
 };
@@ -86,9 +87,36 @@ pub struct BinaryXtDocument {
     pub unresolved_pointers: Vec<UnresolvedPointer>,
 }
 
+/// One headerless binary member of a partition archive.
+#[derive(Debug, Clone)]
+pub struct EmbeddedBinaryXtDocument {
+    pub envelope: EmbeddedBinaryEnvelope,
+    pub nodes: Vec<NodeRecord>,
+    pub terminator: Terminator,
+    pub unresolved_pointer_indices: BTreeSet<u32>,
+    pub unresolved_pointers: Vec<UnresolvedPointer>,
+}
+
+/// A headerless partition member and its separate aggregate delta member.
+///
+/// The delta member's first file index must be one past the partition
+/// member's highest, and its indices must not repeat the partition's
+/// (`hypothesis`: no fixture or oracle run in this repository confirms the
+/// continuation rule yet; a violating pair is rejected, never reinterpreted).
+/// Each member's `unresolved_*` counts its own indices plus any members parsed
+/// before it; the archive's `unresolved_*` is computed over the union.
+#[derive(Debug, Clone)]
+pub struct EmbeddedBinaryXtArchive {
+    pub partition: EmbeddedBinaryXtDocument,
+    pub deltas: EmbeddedBinaryXtDocument,
+    pub unresolved_pointer_indices: BTreeSet<u32>,
+    pub unresolved_pointers: Vec<UnresolvedPointer>,
+}
+
 struct ParsedGraph {
     nodes: Vec<NodeRecord>,
     terminator: Terminator,
+    file_indices: BTreeSet<u32>,
     unresolved_pointer_indices: BTreeSet<u32>,
     unresolved_pointers: Vec<UnresolvedPointer>,
 }
@@ -102,7 +130,12 @@ impl XtDocument {
         let envelope = TextEnvelope::parse(input)?;
         validate_embedded_selection(&envelope.prefix.schema_name, envelope.prefix.span, base)?;
         let mut cursor = envelope.stream.cursor_at(envelope.node_start)?;
-        let graph = parse_graph(&mut cursor, base, Selection::Embedded(dictionary))?;
+        let graph = parse_graph(
+            &mut cursor,
+            base,
+            Selection::Embedded(dictionary),
+            &BTreeSet::new(),
+        )?;
         Ok(Self {
             envelope,
             nodes: graph.nodes,
@@ -137,7 +170,7 @@ impl XtDocument {
             Selection::Complete(target)
         };
         let mut cursor = envelope.stream.cursor_at(envelope.node_start)?;
-        let graph = parse_graph(&mut cursor, base, selection)?;
+        let graph = parse_graph(&mut cursor, base, selection, &BTreeSet::new())?;
         Ok(Self {
             envelope,
             nodes: graph.nodes,
@@ -159,7 +192,12 @@ impl BinaryXtDocument {
         let envelope = BinaryEnvelope::parse_with_bare_machine(input, bare_machine)?;
         validate_embedded_selection(&envelope.prefix.schema_name, envelope.prefix.span, base)?;
         let mut cursor = envelope.cursor(input)?;
-        let graph = parse_graph(&mut cursor, base, Selection::Embedded(dictionary))?;
+        let graph = parse_graph(
+            &mut cursor,
+            base,
+            Selection::Embedded(dictionary),
+            &BTreeSet::new(),
+        )?;
         Ok(Self {
             envelope,
             nodes: graph.nodes,
@@ -188,7 +226,12 @@ impl BinaryXtDocument {
             target,
         )?;
         let mut cursor = envelope.cursor(input)?;
-        let graph = parse_graph(&mut cursor, base, Selection::Exact(target))?;
+        let graph = parse_graph(
+            &mut cursor,
+            base,
+            Selection::Exact(target),
+            &BTreeSet::new(),
+        )?;
         Ok(Self {
             envelope,
             nodes: graph.nodes,
@@ -196,6 +239,107 @@ impl BinaryXtDocument {
             unresolved_pointer_indices: graph.unresolved_pointer_indices,
             unresolved_pointers: graph.unresolved_pointers,
         })
+    }
+}
+
+impl EmbeddedBinaryXtDocument {
+    /// Parse one headerless binary member: the `PS` (or bare `B`) prefix starts
+    /// at byte 0 with no common header. Schema selection is as
+    /// [`BinaryXtDocument::parse`].
+    pub fn parse(input: &[u8], base: &Schema, target: &Schema) -> Result<Self> {
+        Self::parse_with_bare_machine(input, base, target, None)
+    }
+
+    pub fn parse_with_bare_machine(
+        input: &[u8],
+        base: &Schema,
+        target: &Schema,
+        bare_machine: Option<MachineEncoding>,
+    ) -> Result<Self> {
+        Self::parse_with_prior_indices(input, base, target, bare_machine, &BTreeSet::new())
+            .map(|(document, _)| document)
+    }
+
+    /// Returns the document and the union of `prior_file_indices` with its own.
+    fn parse_with_prior_indices(
+        input: &[u8],
+        base: &Schema,
+        target: &Schema,
+        bare_machine: Option<MachineEncoding>,
+        prior_file_indices: &BTreeSet<u32>,
+    ) -> Result<(Self, BTreeSet<u32>)> {
+        let envelope = EmbeddedBinaryEnvelope::parse_with_bare_machine(input, bare_machine)?;
+        validate_schema_selection(
+            &envelope.prefix.schema_name,
+            envelope.prefix.max_node_types,
+            envelope.prefix.span,
+            base,
+            target,
+        )?;
+        let mut cursor = envelope.cursor(input)?;
+        let graph = parse_graph(
+            &mut cursor,
+            base,
+            Selection::Exact(target),
+            prior_file_indices,
+        )?;
+        Ok((
+            Self {
+                envelope,
+                nodes: graph.nodes,
+                terminator: graph.terminator,
+                unresolved_pointer_indices: graph.unresolved_pointer_indices,
+                unresolved_pointers: graph.unresolved_pointers,
+            },
+            graph.file_indices,
+        ))
+    }
+}
+
+impl EmbeddedBinaryXtArchive {
+    pub fn parse(
+        partition_input: &[u8],
+        deltas_input: &[u8],
+        base: &Schema,
+        target: &Schema,
+    ) -> Result<Self> {
+        Self::parse_with_bare_machine(partition_input, deltas_input, base, target, None)
+    }
+
+    pub fn parse_with_bare_machine(
+        partition_input: &[u8],
+        deltas_input: &[u8],
+        base: &Schema,
+        target: &Schema,
+        bare_machine: Option<MachineEncoding>,
+    ) -> Result<Self> {
+        let (partition, partition_indices) = EmbeddedBinaryXtDocument::parse_with_prior_indices(
+            partition_input,
+            base,
+            target,
+            bare_machine,
+            &BTreeSet::new(),
+        )?;
+        let (deltas, all_indices) = EmbeddedBinaryXtDocument::parse_with_prior_indices(
+            deltas_input,
+            base,
+            target,
+            bare_machine,
+            &partition_indices,
+        )?;
+        let (unresolved_pointer_indices, unresolved_pointers) =
+            find_unresolved_pointers(partition.nodes.iter().chain(&deltas.nodes), &all_indices);
+        Ok(Self {
+            partition,
+            deltas,
+            unresolved_pointer_indices,
+            unresolved_pointers,
+        })
+    }
+
+    /// Partition nodes followed by delta nodes.
+    pub fn nodes(&self) -> impl Iterator<Item = &NodeRecord> {
+        self.partition.nodes.iter().chain(&self.deltas.nodes)
     }
 }
 
@@ -224,10 +368,15 @@ fn parse_graph<C: DocumentCursor>(
     cursor: &mut C,
     base: &Schema,
     selection: Selection<'_>,
+    prior_file_indices: &BTreeSet<u32>,
 ) -> Result<ParsedGraph> {
     let mut layouts: BTreeMap<u16, NodeLayout> = BTreeMap::new();
-    let mut file_indices = BTreeSet::new();
+    let mut file_indices = prior_file_indices.clone();
     let mut nodes = Vec::new();
+    let expected_first_index = prior_file_indices
+        .last()
+        .copied()
+        .map_or(Some(1), |index| index.checked_add(1));
 
     let terminator = loop {
         let record_start = cursor.position();
@@ -337,11 +486,21 @@ fn parse_graph<C: DocumentCursor>(
                 format!("duplicate node file index {file_index}"),
             ));
         }
-        if nodes.is_empty() && file_index != 1 {
-            return Err(node_error(
-                cursor.span_from(record_start),
-                format!("root node must have file index 1, got {file_index}"),
-            ));
+        if nodes.is_empty() {
+            let expected = expected_first_index.ok_or_else(|| {
+                node_error(
+                    cursor.span_from(record_start),
+                    "prior file index cannot be incremented",
+                )
+            })?;
+            if file_index != expected {
+                let context = if prior_file_indices.is_empty() {
+                    format!("root node must have file index 1, got {file_index}")
+                } else {
+                    format!("continuation node must have file index {expected}, got {file_index}")
+                };
+                return Err(node_error(cursor.span_from(record_start), context));
+            }
         }
 
         let fields = read_node_fields(cursor, node_type, &layout.fields, variable_length)?;
@@ -370,9 +529,25 @@ fn parse_graph<C: DocumentCursor>(
         return Err(node_error(terminator.span, "XT document has no root node"));
     }
 
+    let (unresolved_pointer_indices, unresolved_pointers) =
+        find_unresolved_pointers(nodes.iter(), &file_indices);
+
+    Ok(ParsedGraph {
+        nodes,
+        terminator,
+        file_indices,
+        unresolved_pointer_indices,
+        unresolved_pointers,
+    })
+}
+
+fn find_unresolved_pointers<'a>(
+    nodes: impl Iterator<Item = &'a NodeRecord>,
+    file_indices: &BTreeSet<u32>,
+) -> (BTreeSet<u32>, Vec<UnresolvedPointer>) {
     let mut unresolved_pointer_indices = BTreeSet::new();
     let mut unresolved_pointers = Vec::new();
-    for node in &nodes {
+    for node in nodes {
         for field in &node.fields {
             for (element_index, value) in field.values.iter().enumerate() {
                 let ScalarValue::PointerIndex(Some(target_index)) = value else {
@@ -391,13 +566,7 @@ fn parse_graph<C: DocumentCursor>(
             }
         }
     }
-
-    Ok(ParsedGraph {
-        nodes,
-        terminator,
-        unresolved_pointer_indices,
-        unresolved_pointers,
-    })
+    (unresolved_pointer_indices, unresolved_pointers)
 }
 
 /// A complete stream names `SCH_<version>_<schema>`; the schema must match.
@@ -1310,5 +1479,79 @@ number; d; 1 0 0 \n\
             XtDocument::parse_text(b"T1 X17 SCH_1400000_140000 3 1 42 1 0 ", &base, &target)
                 .unwrap_err();
         assert_eq!(error.kind, ErrorKind::InvalidNode);
+    }
+
+    /// One headerless neutral-binary member holding a single VALUE node.
+    fn headerless_member(file_index: i16, value: i32) -> Vec<u8> {
+        let schema_name = b"SCH_1400000_14000_13006";
+        let mut body = b"PS\0\0".to_vec();
+        body.extend_from_slice(&1_i16.to_be_bytes());
+        body.push(b'X');
+        body.extend_from_slice(&(schema_name.len() as i32).to_be_bytes());
+        body.extend_from_slice(schema_name);
+        body.extend_from_slice(&3_i16.to_be_bytes());
+        body.extend_from_slice(&0_i32.to_be_bytes());
+        body.extend_from_slice(&2_i16.to_be_bytes());
+        body.push(u8::MAX);
+        body.extend_from_slice(&file_index.to_be_bytes());
+        body.extend_from_slice(&value.to_be_bytes());
+        body.extend_from_slice(&1_i16.to_be_bytes());
+        body.extend_from_slice(&1_i16.to_be_bytes());
+        body
+    }
+
+    #[test]
+    fn parses_headerless_partition_and_delta_continuation() {
+        let base = schema("SCH_13006");
+        let target = schema("SCH_14000");
+        let archive = EmbeddedBinaryXtArchive::parse(
+            &headerless_member(2, 10),
+            &headerless_member(3, 20),
+            &base,
+            &target,
+        )
+        .unwrap();
+
+        assert_eq!(archive.partition.nodes[0].file_index, 1);
+        assert_eq!(archive.deltas.nodes[0].file_index, 2);
+        assert_eq!(
+            archive.deltas.nodes[0].fields[0].values,
+            [ScalarValue::Integer(Some(20))]
+        );
+        assert_eq!(archive.nodes().count(), 2);
+        assert!(archive.unresolved_pointers.is_empty());
+    }
+
+    #[test]
+    fn headerless_member_parses_alone_but_a_header_is_not_skipped() {
+        let base = schema("SCH_13006");
+        let target = schema("SCH_14000");
+        let member = headerless_member(2, 10);
+        let document = EmbeddedBinaryXtDocument::parse(&member, &base, &target).unwrap();
+        assert_eq!(document.envelope.node_start + 13, member.len());
+        assert_eq!(document.nodes[0].file_index, 1);
+
+        let mut framed = b"**PART1;FORMAT=binary;\n**END_OF_HEADER***\n".to_vec();
+        framed.extend_from_slice(&member);
+        let error = EmbeddedBinaryXtDocument::parse(&framed, &base, &target).unwrap_err();
+        assert_eq!(error.kind, ErrorKind::UnsupportedFormat);
+    }
+
+    #[test]
+    fn rejects_non_contiguous_delta_start() {
+        let base = schema("SCH_13006");
+        let target = schema("SCH_14000");
+        let error = EmbeddedBinaryXtArchive::parse(
+            &headerless_member(2, 0),
+            &headerless_member(4, 0),
+            &base,
+            &target,
+        )
+        .unwrap_err();
+        assert!(
+            error
+                .context
+                .contains("continuation node must have file index 2")
+        );
     }
 }

@@ -16,11 +16,11 @@ pub mod typed;
 
 pub use binary::{
     BinaryEnvelope, BinaryKind, BinaryPrefix, ByteOrder, CharacterEncoding, DoubleEncoding,
-    MachineEncoding,
+    EmbeddedBinaryEnvelope, MachineEncoding,
 };
 pub use document::{
-    BinaryXtDocument, FieldValue, NodeRecord, ScalarValue, SchemaUpdateKind, Terminator,
-    UnresolvedPointer, XtDocument,
+    BinaryXtDocument, EmbeddedBinaryXtArchive, EmbeddedBinaryXtDocument, FieldValue, NodeRecord,
+    ScalarValue, SchemaUpdateKind, Terminator, UnresolvedPointer, XtDocument,
 };
 pub use error::{ErrorKind, Result, XtError};
 pub use header::{CommonHeader, HeaderDiagnostic, HeaderDiagnosticKind, HeaderEntry, HeaderPart};

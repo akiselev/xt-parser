@@ -73,6 +73,17 @@ pub struct BinaryEnvelope {
     pub node_start: usize,
 }
 
+/// Headerless binary XT member embedded inside another application's container.
+///
+/// Parasolid partition archives may store the partition and its aggregate
+/// delta stream as separate logical files. Container formats can omit the
+/// ordinary XT common header while retaining the complete `PS` binary prefix.
+#[derive(Debug, Clone)]
+pub struct EmbeddedBinaryEnvelope {
+    pub prefix: BinaryPrefix,
+    pub node_start: usize,
+}
+
 impl BinaryEnvelope {
     pub fn parse(input: &[u8]) -> Result<Self> {
         Self::parse_with_bare_machine(input, None)
@@ -83,127 +94,154 @@ impl BinaryEnvelope {
         bare_machine: Option<MachineEncoding>,
     ) -> Result<Self> {
         let header = CommonHeader::parse(input)?;
-        let mut cursor = PrefixCursor::new(input, header.body_offset);
-        let start = cursor.position;
-
-        let (kind, machine, bare_length_is_i32) = match cursor.peek(4) {
-            Some(b"PS\0\0") => {
-                cursor.position += 4;
-                (BinaryKind::Neutral, MachineEncoding::BIG_IEEE_ASCII, false)
-            }
-            Some(b"PS\0\x01") => {
-                cursor.position += 4;
-                let descriptor = cursor.take(3, "typed-binary machine descriptor")?;
-                let machine = MachineEncoding {
-                    byte_order: match descriptor[0] {
-                        0 => ByteOrder::BigEndian,
-                        1 => ByteOrder::LittleEndian,
-                        other => {
-                            return Err(binary_error(
-                                cursor.span_from(start),
-                                format!("unknown typed-binary byte-order code {other}"),
-                            ));
-                        }
-                    },
-                    doubles: match descriptor[1] {
-                        0 => DoubleEncoding::Ieee,
-                        1 => DoubleEncoding::VaxDFloat,
-                        other => {
-                            return Err(binary_error(
-                                cursor.span_from(start),
-                                format!("unknown typed-binary double code {other}"),
-                            ));
-                        }
-                    },
-                    characters: match descriptor[2] {
-                        0 => CharacterEncoding::Ascii,
-                        1 => CharacterEncoding::Ebcdic,
-                        other => {
-                            return Err(binary_error(
-                                cursor.span_from(start),
-                                format!("unknown typed-binary character code {other}"),
-                            ));
-                        }
-                    },
-                };
-                (BinaryKind::Typed, machine, false)
-            }
-            _ if cursor.peek(1) == Some(b"B") => {
-                cursor.position += 1;
-                let machine = bare_machine.ok_or_else(|| {
-                    XtError::new(
-                        ErrorKind::UnsupportedFormat,
-                        Span::new(start, start + 1),
-                        "bare binary is machine-dependent; supply its machine encoding",
-                    )
-                })?;
-                (BinaryKind::Bare, machine, true)
-            }
-            _ => {
-                return Err(XtError::new(
-                    ErrorKind::UnsupportedFormat,
-                    Span::new(start, (start + 7).min(input.len())),
-                    "body is not bare, typed, or neutral binary XT",
-                ));
-            }
-        };
-
-        if machine.doubles != DoubleEncoding::Ieee {
-            return Err(XtError::new(
-                ErrorKind::UnsupportedFormat,
-                cursor.span_from(start),
-                "VAX D-float binary XT is identified but not decoded",
-            ));
-        }
-        if machine.characters != CharacterEncoding::Ascii {
-            return Err(XtError::new(
-                ErrorKind::UnsupportedFormat,
-                cursor.span_from(start),
-                "EBCDIC binary XT is identified but not decoded",
-            ));
-        }
-
-        cursor.machine = machine;
-        let modeler_length = if bare_length_is_i32 {
-            cursor.read_nonnegative_i32("modeler version length")?
-        } else {
-            cursor.read_nonnegative_i16("modeler version length")?
-        };
-        let modeler_version = cursor.take(modeler_length, "modeler version")?.to_vec();
-        let schema_length = cursor.read_nonnegative_i32("schema name length")?;
-        let schema_name = cursor.take(schema_length, "schema name")?.to_vec();
-        let max_node_types = if has_embedded_base_schema(&schema_name) {
-            Some(cursor.read_nonnegative_i16("maximum node type")? as u16)
-        } else {
-            None
-        };
-        let user_field_size = cursor.read_nonnegative_i32("user field size")?;
-        if user_field_size > 16 {
-            return Err(XtError::new(
-                ErrorKind::NumberOutOfRange,
-                cursor.span_from(start),
-                "user field size must be in 0..=16",
-            ));
-        }
-        let prefix = BinaryPrefix {
-            kind,
-            machine,
-            modeler_version,
-            schema_name,
-            max_node_types,
-            user_field_size: user_field_size as u8,
-            span: cursor.span_from(start),
-        };
+        let (prefix, node_start) = parse_binary_prefix(input, header.body_offset, bare_machine)?;
         Ok(Self {
             header,
             prefix,
-            node_start: cursor.position,
+            node_start,
         })
     }
 
     pub(crate) fn cursor<'a>(&self, input: &'a [u8]) -> Result<BinaryCursor<'a>> {
         BinaryCursor::new(input, self.node_start, self.prefix.machine)
     }
+}
+
+impl EmbeddedBinaryEnvelope {
+    pub fn parse(input: &[u8]) -> Result<Self> {
+        Self::parse_with_bare_machine(input, None)
+    }
+
+    pub fn parse_with_bare_machine(
+        input: &[u8],
+        bare_machine: Option<MachineEncoding>,
+    ) -> Result<Self> {
+        let (prefix, node_start) = parse_binary_prefix(input, 0, bare_machine)?;
+        Ok(Self { prefix, node_start })
+    }
+
+    pub(crate) fn cursor<'a>(&self, input: &'a [u8]) -> Result<BinaryCursor<'a>> {
+        BinaryCursor::new(input, self.node_start, self.prefix.machine)
+    }
+}
+
+fn parse_binary_prefix(
+    input: &[u8],
+    body_offset: usize,
+    bare_machine: Option<MachineEncoding>,
+) -> Result<(BinaryPrefix, usize)> {
+    let mut cursor = PrefixCursor::new(input, body_offset);
+    let start = cursor.position;
+
+    let (kind, machine, bare_length_is_i32) = match cursor.peek(4) {
+        Some(b"PS\0\0") => {
+            cursor.position += 4;
+            (BinaryKind::Neutral, MachineEncoding::BIG_IEEE_ASCII, false)
+        }
+        Some(b"PS\0\x01") => {
+            cursor.position += 4;
+            let descriptor = cursor.take(3, "typed-binary machine descriptor")?;
+            let machine = MachineEncoding {
+                byte_order: match descriptor[0] {
+                    0 => ByteOrder::BigEndian,
+                    1 => ByteOrder::LittleEndian,
+                    other => {
+                        return Err(binary_error(
+                            cursor.span_from(start),
+                            format!("unknown typed-binary byte-order code {other}"),
+                        ));
+                    }
+                },
+                doubles: match descriptor[1] {
+                    0 => DoubleEncoding::Ieee,
+                    1 => DoubleEncoding::VaxDFloat,
+                    other => {
+                        return Err(binary_error(
+                            cursor.span_from(start),
+                            format!("unknown typed-binary double code {other}"),
+                        ));
+                    }
+                },
+                characters: match descriptor[2] {
+                    0 => CharacterEncoding::Ascii,
+                    1 => CharacterEncoding::Ebcdic,
+                    other => {
+                        return Err(binary_error(
+                            cursor.span_from(start),
+                            format!("unknown typed-binary character code {other}"),
+                        ));
+                    }
+                },
+            };
+            (BinaryKind::Typed, machine, false)
+        }
+        _ if cursor.peek(1) == Some(b"B") => {
+            cursor.position += 1;
+            let machine = bare_machine.ok_or_else(|| {
+                XtError::new(
+                    ErrorKind::UnsupportedFormat,
+                    Span::new(start, start + 1),
+                    "bare binary is machine-dependent; supply its machine encoding",
+                )
+            })?;
+            (BinaryKind::Bare, machine, true)
+        }
+        _ => {
+            return Err(XtError::new(
+                ErrorKind::UnsupportedFormat,
+                Span::new(start, (start + 7).min(input.len())),
+                "body is not bare, typed, or neutral binary XT",
+            ));
+        }
+    };
+
+    if machine.doubles != DoubleEncoding::Ieee {
+        return Err(XtError::new(
+            ErrorKind::UnsupportedFormat,
+            cursor.span_from(start),
+            "VAX D-float binary XT is identified but not decoded",
+        ));
+    }
+    if machine.characters != CharacterEncoding::Ascii {
+        return Err(XtError::new(
+            ErrorKind::UnsupportedFormat,
+            cursor.span_from(start),
+            "EBCDIC binary XT is identified but not decoded",
+        ));
+    }
+
+    cursor.machine = machine;
+    let modeler_length = if bare_length_is_i32 {
+        cursor.read_nonnegative_i32("modeler version length")?
+    } else {
+        cursor.read_nonnegative_i16("modeler version length")?
+    };
+    let modeler_version = cursor.take(modeler_length, "modeler version")?.to_vec();
+    let schema_length = cursor.read_nonnegative_i32("schema name length")?;
+    let schema_name = cursor.take(schema_length, "schema name")?.to_vec();
+    let max_node_types = if has_embedded_base_schema(&schema_name) {
+        Some(cursor.read_nonnegative_i16("maximum node type")? as u16)
+    } else {
+        None
+    };
+    let user_field_size = cursor.read_nonnegative_i32("user field size")?;
+    if user_field_size > 16 {
+        return Err(XtError::new(
+            ErrorKind::NumberOutOfRange,
+            cursor.span_from(start),
+            "user field size must be in 0..=16",
+        ));
+    }
+    let prefix = BinaryPrefix {
+        kind,
+        machine,
+        modeler_version,
+        schema_name,
+        max_node_types,
+        user_field_size: user_field_size as u8,
+        span: cursor.span_from(start),
+    };
+    Ok((prefix, cursor.position))
 }
 
 pub(crate) struct BinaryCursor<'a> {
