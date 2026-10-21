@@ -6,7 +6,7 @@ use schema::{Node, nodes as n};
 use xt_parser::{NodeRecord, XtDouble, XtPointer, XtVector};
 
 use super::common::{
-    Circle, Cone, Cylinder, CurveKind, Ellipse, Line, Plane, RegionKind, Sense, Sphere,
+    BodyKind, Circle, Cone, Cylinder, CurveKind, Ellipse, Line, Plane, RegionKind, Sense, Sphere,
     SurfaceKind, Torus, Vec3, ViewError,
 };
 
@@ -201,8 +201,8 @@ resolver!(edge_at, Edge, Edge, "EDGE");
 resolver!(vertex_at, Vertex, Vertex, "VERTEX");
 
 impl<'a> Body<'a> {
-    pub fn body_type(&self) -> u8 {
-        self.node.body_type.0
+    pub fn kind(&self) -> Result<BodyKind> {
+        BodyKind::from_code(self.node.body_type.0)
     }
 
     pub fn regions(&self) -> Result<Vec<Region<'a>>> {

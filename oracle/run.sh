@@ -16,6 +16,14 @@ lock="$here/../../cadabra3/scripts/cargo-locked"
 native="$run/native.ndjson"
 oracle="$run/oracle.ndjson"
 
+rs=$(cd "$here/../../parasolid-rs" && pwd)
+{
+  echo "parasolid-rs $(git -C "$rs" rev-parse HEAD) dirty_files=$(git -C "$rs" status --porcelain | wc -l)"
+  echo "pskernel.dll $(sha256sum "$rs/lib/pskernel.dll" | cut -d' ' -f1)"
+  echo "xt-parser $(git -C "$here" rev-parse HEAD) dirty_files=$(git -C "$here" status --porcelain | wc -l)"
+  echo "started $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+} >"$run/provenance.txt"
+
 "$here/target/release/xt-native-dump" "$list" "$native" --threads "${THREADS:-4}"
 
 : >>"$oracle"

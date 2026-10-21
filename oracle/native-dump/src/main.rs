@@ -208,7 +208,7 @@ fn describe_body(body: xt_schema::view::sch_30100::Body<'_>) -> Result<BodyDiges
     });
 
     Ok(BodyDigest {
-        body_type: format!("code{}", body.body_type()),
+        body_type: format!("{:?}", body.kind()?).to_lowercase(),
         counts: Counts {
             regions: regions.len(),
             shells,

@@ -45,6 +45,30 @@ impl RegionKind {
     }
 }
 
+/// The kind of a body. Only the codes seen in files and cross-checked against
+/// Parasolid are named (`dynamic-observed`, 152,096 ABC parts); any other code
+/// is an error rather than a guess.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum BodyKind {
+    Solid,
+    Wire,
+    Sheet,
+}
+
+impl BodyKind {
+    pub(crate) fn from_code(raw: u8) -> Result<Self, ViewError> {
+        match raw {
+            1 => Ok(Self::Solid),
+            2 => Ok(Self::Wire),
+            3 => Ok(Self::Sheet),
+            other => Err(ViewError::BadEnumeration {
+                field: "body.body_type",
+                value: other,
+            }),
+        }
+    }
+}
+
 /// Every surface class that can be the carrier of a face.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum SurfaceKind {

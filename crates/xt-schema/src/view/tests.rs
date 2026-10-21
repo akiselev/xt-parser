@@ -5,7 +5,7 @@ use xt_parser::{
 };
 
 use super::{
-    RegionKind, Sense, ViewError,
+    BodyKind, RegionKind, Sense, ViewError,
     sch_30100::{Curve, LoopBoundary, Model, Surface, classify_curve, classify_surface},
 };
 use crate::schemas::sch_30100::{Node, nodes as n};
@@ -259,6 +259,7 @@ fn with_model<R>(nodes: Vec<Node>, check: impl FnOnce(&Model<'_>) -> R) -> R {
 fn walks_regions_shells_faces_loops_and_fins() {
     with_model(fixture(), |model| {
         let body = model.bodies().next().expect("one body");
+        assert_eq!(body.kind().unwrap(), BodyKind::Sheet);
         let regions = body.regions().unwrap();
         let kinds: Vec<_> = regions.iter().map(|r| r.kind().unwrap()).collect();
         assert_eq!(kinds, [RegionKind::Void, RegionKind::Solid]);

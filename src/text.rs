@@ -104,9 +104,15 @@ impl<'a> TextCursor<'a> {
             .and_then(|value| parse_optional(value, "short integer"))
     }
 
+    /// Read a 16-bit Unicode code unit. The text stream writes it as a signed
+    /// short, so code units above 0x7FFF appear as negative numbers
+    /// (`-239` is U+FF11); `dynamic-observed` against ABC files whose part names
+    /// contain such characters.
     pub fn read_u16(&mut self) -> Result<Option<u16>> {
-        self.optional_number("unsigned short integer")
-            .and_then(|value| parse_optional(value, "unsigned short integer"))
+        let signed: Option<i16> = self
+            .optional_number("Unicode code unit")
+            .and_then(|value| parse_optional(value, "Unicode code unit"))?;
+        Ok(signed.map(|value| value as u16))
     }
 
     pub fn read_i32(&mut self) -> Result<Option<i32>> {
@@ -510,6 +516,18 @@ mod tests {
         assert!(cursor.read_logical().unwrap());
         assert!(cursor.read_logical().unwrap());
         assert_eq!(cursor.remaining(), 0);
+    }
+
+    #[test]
+    fn unicode_code_units_are_signed_shorts_in_text() {
+        let stream = TextStream::from_raw(b"65 -239 -31541 ?", 0);
+        let mut cursor = stream.cursor();
+        assert_eq!(cursor.read_u16().unwrap(), Some(0x41));
+        assert_eq!(cursor.read_u16().unwrap(), Some(0xFF11));
+        assert_eq!(cursor.read_u16().unwrap(), Some(0x84CB));
+        assert_eq!(cursor.read_u16().unwrap(), None);
+        let stream = TextStream::from_raw(b"65536 ", 0);
+        assert!(stream.cursor().read_u16().is_err());
     }
 
     #[test]

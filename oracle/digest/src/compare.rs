@@ -24,6 +24,7 @@ pub const PARAMETER_LAYOUT: &[(Class, &str)] = &[
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Category {
     BodyCount,
+    BodyType,
     Counts,
     SurfaceClasses,
     CurveClasses,
@@ -42,6 +43,7 @@ impl Category {
     pub fn name(self) -> &'static str {
         match self {
             Self::BodyCount => "body_count",
+            Self::BodyType => "body_type",
             Self::Counts => "counts",
             Self::SurfaceClasses => "surface_classes",
             Self::CurveClasses => "curve_classes",
@@ -134,6 +136,12 @@ pub fn compare_files(native: &FileDigest, oracle: Option<&FileDigest>) -> Verdic
 }
 
 fn compare_body(n: &BodyDigest, o: &BodyDigest, out: &mut Vec<(Category, String)>) {
+    if n.body_type != o.body_type {
+        out.push((
+            Category::BodyType,
+            format!("native {} oracle {}", n.body_type, o.body_type),
+        ));
+    }
     for note in &n.notes {
         out.push((Category::NativeNotes, note.clone()));
     }
