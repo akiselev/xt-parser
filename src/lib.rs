@@ -13,6 +13,7 @@ pub mod schema;
 mod span;
 mod text;
 pub mod typed;
+pub mod write;
 
 pub use binary::{
     BinaryEnvelope, BinaryKind, BinaryPrefix, ByteOrder, CharacterEncoding, DoubleEncoding,

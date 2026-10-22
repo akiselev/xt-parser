@@ -68,7 +68,19 @@ Date: 2026-10-21
   derived acorn, minimum and empty; `bounds` unavailable from Parasolid for an empty
   body or a curveless wire is recorded, not a failure.
 
-### Design for a cadabra-to-XT writer (not built in this lane)
+### cadabra-to-XT writer (built on `lane/xt-writer`, 2026-10-21)
+
+Built as `xt_parser::write::TextSink` (the inverse of `TextCursor`) and `xt_schema::write::{TextWriter, WriteError}`.
+Deviations from the design below: no generated `Node -> NodeRecord`; the conversion goes through the node's `Serialize`
+form and the schema spec (`nodes_to_records`), because the `.s_t` sources needed to regenerate are not on this machine. A
+real that is NaN or infinite serialises to JSON null, so it is caught only as an unset value: the caller must pass finite
+reals. Output is one bare kernel stream (no container header), lines broken at 200 columns before a space. Round trip:
+all 5 `pk-minimal` and 36 of the 39 `pk-unusual` fixtures parse, write and parse to equal nodes, and all 41 written files
+pass the `oracle/` cross-check against Parasolid (parasolid-rs f889c61, DLL c900fa3f). The other three unusual fixtures
+(`xt-u-bool-edge-man`, `xt-u-multi-lump-split`, `xt-u-multi-lump-unite`) have a multi-part transmit block as root, not a
+BODY, and are refused. Set `XT_WRITER_OUT=dir` when running `writer_roundtrip` to keep the written files.
+
+Original design:
 
 Target: the complete form `SCH_3701243_37102` (transmit_version 371), delivered with
 `parasolid::fileio::receive_from_str`. The reader side is now ready for round trips.
